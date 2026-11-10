@@ -105,25 +105,42 @@ def sphere(x, y, z, r, vel=(0, 0, 0)):
     return S((x, y, T0 + z), ID, (x - r, y - r, T0 + z - r), (x + r, y + r, T0 + z + r), lin_vel=vel)
 
 
-def knife(x, y, z, quat=ID, vel=(0, 0, 0)):
+def scissors(x, y, z, quat=ID, vel=(0, 0, 0)):
     c = (x, y, T0 + z)
     o = S(c, quat, c, c, lin_vel=vel)
-    tip, butt = task._knife_ends(o)
-    pad = task.KNIFE_HEIGHT / 2
+    tip, butt = task._scissors_ends(o)
+    pad = task.SCISSORS_HEIGHT / 2
     o.low = tuple(min(tip[i], butt[i]) - pad for i in range(3))
     o.high = tuple(max(tip[i], butt[i]) + pad for i in range(3))
     return o
 
 
+def mug(ax, ay, quat=ID):
+    """Library mug as the task assumes it: pos at the bounding-box centre, handle along body +x."""
+    h = task.MUG_RIM_HEIGHT
+    off = task._rotate(quat, (task.MUG_HANDLE_OFFSET, 0.0, 0.0))
+    c = (ax + off[0], ay + off[1], T0 + h / 2)
+    r = task.MUG_BODY_RADIUS
+    return S(c, quat, (ax - r, ay - r, T0), (ax + r + 2 * task.MUG_HANDLE_OFFSET, ay + r, T0 + h))
+
+
+def coffee(ax, ay, dz=0.0):
+    r = task.LAYOUT["coffee"]["radius"]
+    h = task.LAYOUT["coffee"]["height"]
+    z0 = task.MUG_INNER_FLOOR + dz
+    return S((ax, ay, T0 + z0 + h / 2), ID, (ax - r, ay - r, T0 + z0), (ax + r, ay + r, T0 + z0 + h))
+
+
 def nominal():
     return {
-        "knife": knife(0.26, 0.00, task.KNIFE_HEIGHT / 2),
+        "scissors": scissors(0.26, 0.00, task.SCISSORS_HEIGHT / 2),
         "towel_pad": box(0.26, 0.06, task._PAD_Z - 0.002, 0.120, 0.110, 0.008),
         "towel_sheet": box(0.26, 0.00, task._SHEET_Z - 0.004, 0.260, 0.240, 0.0015),
         "apple": sphere(0.26, 0.06, task._APPLE_Z - 0.007, 0.033),
         "bowl": cyl(0.24, 0.26, 0.080, 0.055),
         "plate": cyl(0.26, -0.30, 0.100, task.PLATE_HEIGHT),
-        "mug": cyl(0.36, -0.16, 0.0425, 0.095),
+        "mug": mug(0.32, -0.16),
+        "coffee": coffee(0.32, -0.16),
     }
 
 
@@ -144,12 +161,12 @@ def towels_aside():
     }
 
 
-def knife_on_plate(yaw_deg=-90.0, x=0.26, y=-0.30):
-    return knife(x, y, task.PLATE_HEIGHT + task.KNIFE_HEIGHT / 2, quat=qz(yaw_deg))
+def scissors_on_plate(yaw_deg=-90.0, x=0.26, y=-0.30):
+    return scissors(x, y, task.PLATE_HEIGHT + task.SCISSORS_HEIGHT / 2, quat=qz(yaw_deg))
 
 
 def final_state():
-    return with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate(), **towels_aside())
+    return with_(nominal(), apple=apple_in_bowl(), scissors=scissors_on_plate(), **towels_aside())
 
 
 def reset():
@@ -179,25 +196,25 @@ def test_table_height_comes_from_the_scene_entry():
     assert task.TABLE_Z == task.TABLE_TOP[task.SCENE]
 
 
-def test_knife_asset_has_been_chosen():
-    assert task.KNIFE_ASSET != "SET_FROM_ARENA_LIBRARY", "pick the knife from Arena's object library"
+def test_scissors_asset_has_been_chosen():
+    assert task.SCISSORS_ASSET != "SET_FROM_ARENA_LIBRARY", "pick the scissors from Arena's object library"
 
 
-def test_knife_frame_points_tip_to_plus_y_at_start():
-    tip, butt = task._knife_ends(nominal()["knife"])
+def test_scissors_frame_points_tip_to_plus_y_at_start():
+    tip, butt = task._scissors_ends(nominal()["scissors"])
     assert tip[1] > butt[1]
 
 
 def test_straight_carry_would_cross_the_keepout():
-    """The design premise: the obvious route from the knife to the plate passes the mug."""
-    gx0, gy0 = L["knife"]["xy"][0], L["knife"]["xy"][1] - task.GRASP_FROM_CENTRE
+    """The design premise: the obvious route from the scissors to the plate passes the mug."""
+    gx0, gy0 = L["scissors"]["xy"][0], L["scissors"]["xy"][1] - task.GRASP_FROM_CENTRE
     gx1, gy1 = L["plate"]["xy"][0] - task.GRASP_FROM_CENTRE, L["plate"]["xy"][1]
     worst = math.inf
     for i in range(101):
         t = i / 100
         g = (gx0 + t * (gx1 - gx0), gy0 + t * (gy1 - gy0))
-        k = knife(g[0] + task.GRASP_FROM_CENTRE, g[1], 0.10, quat=qz(-90))
-        worst = min(worst, task._knife_mug_hdist({"knife": k, "mug": nominal()["mug"]}))
+        k = scissors(g[0] + task.GRASP_FROM_CENTRE, g[1], 0.10, quat=qz(-90))
+        worst = min(worst, task._scissors_mug_hdist({"scissors": k, "mug": nominal()["mug"]}))
     assert worst < task.TH["keepout_radius"]
 
 
@@ -226,8 +243,8 @@ def test_apple_and_towels():
 
 
 @pytest.mark.parametrize("yaw", [90, 180, -45])
-def test_knife_on_plate_pointing_wrong_way_is_075(yaw):
-    w = with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))
+def test_scissors_on_plate_pointing_wrong_way_is_075(yaw):
+    w = with_(final_state(), scissors=scissors_on_plate(yaw_deg=yaw))
     assert run([nominal(), w]) is False
     assert task.score(w) == 0.75
 
@@ -238,12 +255,12 @@ def test_full_success_and_score_capped_at_075():
 
 
 @pytest.mark.parametrize("yaw,ok", [(-90 + 24, True), (-90 - 24, True), (-90 + 26, False)])
-def test_knife_direction_boundary(yaw, ok):
-    assert task._knife_set(with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))) is ok
+def test_scissors_direction_boundary(yaw, ok):
+    assert task._scissors_set(with_(final_state(), scissors=scissors_on_plate(yaw_deg=yaw))) is ok
 
 
 def test_tiers_do_not_skip_towels():
-    w = with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate())
+    w = with_(nominal(), apple=apple_in_bowl(), scissors=scissors_on_plate())
     run([nominal(), w])
     assert task.score(w) == 0.25
 
@@ -258,28 +275,61 @@ def test_no_apple_means_zero_even_if_rest_done():
 # Irreversible events and recovery
 # ---------------------------------------------------------------------------
 def test_mug_tilt_spill_is_permanent():
-    tipped = with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(12)))
+    tipped = with_(nominal(), mug=mug(0.32, -0.16, quat=qx(12)))
     assert run([nominal(), tipped, final_state()]) is False
     assert task.score(final_state()) == 0.0
 
 
+def test_coffee_sliding_out_is_spill():
+    out = with_(nominal(), coffee=coffee(0.32, -0.16 + 0.03))
+    assert task._coffee_out(out) is True
+    run([nominal(), out, final_state()])
+    assert task._STATE["zero"] == "coffee spilt"
+    assert task.score(final_state()) == 0.0
+
+
+def test_coffee_lifted_out_is_spill():
+    lifted = with_(nominal(), coffee=coffee(0.32, -0.16, dz=0.03))
+    run([nominal(), lifted])
+    assert task._STATE["zero"] == "coffee spilt"
+
+
+def test_coffee_settling_in_the_mug_is_not_spill():
+    settled = with_(nominal(), coffee=coffee(0.32, -0.158, dz=-0.001))
+    assert run([nominal(), settled, final_state()]) is True
+
+
+def test_spill_is_measured_from_start_not_from_layout(monkeypatch):
+    """If the mug's pos turns out not to be its bounding-box centre, a calibrated
+    POS_OFFSET keeps the layout check passing and the shift is still measured from the start."""
+    monkeypatch.setitem(task.POS_OFFSET, "mug", (0.012, 0.0))
+    monkeypatch.setattr(task, "MUG_AXIS_FROM_POS", (-(task.MUG_HANDLE_OFFSET + 0.012), 0.0, 0.0))
+    first = with_(nominal(), mug=S(tuple(c + d for c, d in zip(nominal()["mug"].pos, (0.012, 0, 0))), ID,
+                                  nominal()["mug"].low, nominal()["mug"].high))
+    reset()
+    task.success(first)
+    assert task._STATE["bad_layout"] is False
+    assert task._STATE["zero"] is None
+    assert task._coffee_out(first) is False
+
+
 def test_mug_shift_spill_is_permanent():
-    pushed = with_(nominal(), mug=cyl(0.36, -0.14, 0.0425, 0.095))
+    pushed = with_(nominal(), mug=mug(0.32, -0.14))
     run([nominal(), pushed, final_state()])
     assert task.score(final_state()) == 0.0
 
 
 def test_slow_restore_does_not_clear_latch():
-    frames = [nominal(), with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(12)))]
+    frames = [nominal(), with_(nominal(), mug=mug(0.32, -0.16, quat=qx(12)))]
     for deg in (9, 6, 3, 0):
-        frames.append(with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(deg))))
+        frames.append(with_(nominal(), mug=mug(0.32, -0.16, quat=qx(deg))))
     frames.append(final_state())
     assert run(frames) is False
     assert task._STATE["zero"] == "coffee spilt"
 
 
-def test_knife_off_table_is_zero():
-    gone = with_(nominal(), knife=knife(0.6, -0.4, -0.3))
+def test_scissors_off_table_is_zero():
+    gone = with_(nominal(), scissors=scissors(0.6, -0.4, -0.3))
     run([nominal(), gone, final_state()])
     assert task.score(final_state()) == 0.0
 
@@ -298,30 +348,30 @@ def test_apple_low_in_bowl_is_not_a_bruise():
     assert task._STATE["apple_bruised"] is False
 
 
-def test_knife_through_keepout_caps_half():
-    through = with_(nominal(), knife=knife(0.33, -0.12, 0.10, quat=qz(-90)))
+def test_scissors_through_keepout_caps_half():
+    through = with_(nominal(), scissors=scissors(0.33, -0.12, 0.10, quat=qz(-90)))
     assert run([nominal(), through, final_state()]) is False
-    assert task._STATE["cap_half"] == "knife near the mug"
+    assert task._STATE["cap_half"] == "scissors near the mug"
     assert task.score(final_state()) == 0.5
 
 
-def test_knife_on_table_is_not_lifted():
-    assert task._knife_lifted(nominal()) is False
-    assert task._knife_in_keepout(nominal()) is False
+def test_scissors_on_table_is_not_lifted():
+    assert task._scissors_lifted(nominal()) is False
+    assert task._scissors_in_keepout(nominal()) is False
 
 
-def test_dropped_knife_caps_half():
-    falling = with_(nominal(), knife=knife(0.12, -0.30, 0.15, quat=qz(-90), vel=(0, 0, -1.2)))
-    assert task._knife_in_keepout(falling) is False
+def test_dropped_scissors_caps_half():
+    falling = with_(nominal(), scissors=scissors(0.12, -0.30, 0.15, quat=qz(-90), vel=(0, 0, -1.2)))
+    assert task._scissors_in_keepout(falling) is False
     run([nominal(), falling, final_state()])
-    assert task._STATE["cap_half"] == "knife dropped"
+    assert task._STATE["cap_half"] == "scissors dropped"
     assert task.score(final_state()) == 0.5
 
 
 def test_transient_violation_on_last_frame_is_caught_without_history():
     reset()
     task.success(nominal())
-    tipped_final = with_(final_state(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(12)))
+    tipped_final = with_(final_state(), mug=mug(0.32, -0.16, quat=qx(12)))
     assert task.score(tipped_final) == 0.0
 
 
@@ -354,38 +404,39 @@ def test_towel_nudged_aside_but_not_cleared():
     assert task._towels_cleared(w) is False
 
 
-def test_knife_held_above_plate_is_not_on_plate():
-    w = with_(final_state(), knife=knife(0.26, -0.30, 0.12, quat=qz(-90)))
+def test_scissors_held_above_plate_is_not_on_plate():
+    w = with_(final_state(), scissors=scissors(0.26, -0.30, 0.12, quat=qz(-90)))
     run([nominal(), w])
     assert task.score(w) == 0.5
 
 
-def test_knife_standing_on_plate_is_not_set():
-    w = with_(final_state(), knife=knife(0.26, -0.30, task.PLATE_HEIGHT + 0.03, quat=qx(-30)))
-    assert task._knife_set(w) is False
+def test_scissors_standing_on_plate_is_not_set():
+    w = with_(final_state(), scissors=scissors(0.26, -0.30, task.PLATE_HEIGHT + 0.03, quat=qx(-30)))
+    assert task._scissors_set(w) is False
 
 
 def test_moving_objects_block_success():
-    k = knife_on_plate()
+    k = scissors_on_plate()
     k.lin_vel = (0.05, 0, 0)
-    assert run([nominal(), with_(final_state(), knife=k)]) is False
+    assert run([nominal(), with_(final_state(), scissors=k)]) is False
 
 
 def test_bad_initial_layout_fails_closed():
-    wrong = with_(nominal(), mug=cyl(0.36, -0.25, 0.0425, 0.095))
+    wrong = with_(nominal(), mug=mug(0.32, -0.25))
     assert run([wrong, final_state()]) is False
     assert task.score(final_state()) == 0.0
 
 
 @pytest.mark.parametrize("deg,spilt", [(7.9, False), (8.1, True)])
 def test_mug_tilt_threshold_boundary(deg, spilt):
-    w = with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(deg)))
+    reset()
+    w = with_(nominal(), mug=mug(0.32, -0.16, quat=qx(deg)))
     assert task._mug_spilt(w) is spilt
 
 
 @pytest.mark.parametrize("yaw", [90, 180, -135])
 def test_mug_yaw_is_not_tilt(yaw):
-    w = with_(final_state(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qz(yaw)))
+    w = with_(final_state(), mug=mug(0.32, -0.16, quat=qz(yaw)))
     assert run([nominal(), w]) is True
 
 
@@ -393,7 +444,7 @@ def test_mug_yaw_is_not_tilt(yaw):
 # Episode reset and purity
 # ---------------------------------------------------------------------------
 def test_teleport_back_to_layout_resets_latches():
-    tipped = with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(12)))
+    tipped = with_(nominal(), mug=mug(0.32, -0.16, quat=qx(12)))
     far = with_(tipped, apple=sphere(0.60, 0.30, 0.04, 0.033))
     run([nominal(), far])
     assert task._STATE["zero"] == "coffee spilt"
@@ -405,7 +456,7 @@ def test_teleport_back_to_layout_resets_latches():
 def test_score_and_distance_are_read_only():
     run([nominal()])
     snap = repr(sorted(task._STATE.items()))
-    tipped = with_(nominal(), mug=cyl(0.36, -0.16, 0.0425, 0.095, quat=qx(20)))
+    tipped = with_(nominal(), mug=mug(0.32, -0.16, quat=qx(20)))
     for _ in range(3):
         task.score(tipped)
         task.distance(tipped)
@@ -423,6 +474,7 @@ def test_debug_print_does_not_change_result(capsys, monkeypatch):
     assert run(frames) is True
     out = capsys.readouterr().out
     assert "task_progress steps=1 " in out and "task_progress steps=20 " in out
+    assert out.count("task_calib ") == 1 and "scissors_quat_xyzw=" in out
 
 
 # ---------------------------------------------------------------------------
@@ -458,9 +510,9 @@ def _carry(wps, start_centre, close_label, release_label):
     return centre, path
 
 
-def test_demo_knife_ends_on_plate_pointing_away_and_never_nears_the_mug():
+def test_demo_scissors_ends_on_plate_pointing_away_and_never_nears_the_mug():
     right = task.demo()["right"]
-    kx, ky = L["knife"]["xy"]
+    kx, ky = L["scissors"]["xy"]
     centre, path = _carry(right, (kx, ky), "close on the handle", "release")
     assert math.hypot(centre[0] - L["plate"]["xy"][0], centre[1] - L["plate"]["xy"][1]) < 0.005
     _, final_turn, _ = path[-1]
@@ -470,8 +522,8 @@ def test_demo_knife_ends_on_plate_pointing_away_and_never_nears_the_mug():
     for c, a, rise in path:
         if rise <= task.TH["lift"]:
             continue
-        k = knife(c[0], c[1], 0.10, quat=qz(math.degrees(a)))
-        closest = min(closest, task._knife_mug_hdist({"knife": k, "mug": mug}))
+        k = scissors(c[0], c[1], 0.10, quat=qz(math.degrees(a)))
+        closest = min(closest, task._scissors_mug_hdist({"scissors": k, "mug": mug}))
     assert closest > task.TH["keepout_radius"] + 0.01
 
 
