@@ -105,11 +105,11 @@ def sphere(x, y, z, r, vel=(0, 0, 0)):
     return S((x, y, T0 + z), ID, (x - r, y - r, T0 + z - r), (x + r, y + r, T0 + z + r), lin_vel=vel)
 
 
-def scissors(x, y, z, quat=ID, vel=(0, 0, 0)):
+def knife(x, y, z, quat=ID, vel=(0, 0, 0)):
     c = (x, y, T0 + z)
     o = S(c, quat, c, c, lin_vel=vel)
-    tip, butt = task._scissors_ends(o)
-    pad = task.SCISSORS_HEIGHT / 2
+    tip, butt = task._knife_ends(o)
+    pad = task.KNIFE_HEIGHT / 2
     o.low = tuple(min(tip[i], butt[i]) - pad for i in range(3))
     o.high = tuple(max(tip[i], butt[i]) + pad for i in range(3))
     return o
@@ -118,8 +118,8 @@ def scissors(x, y, z, quat=ID, vel=(0, 0, 0)):
 def mug(ax, ay, quat=ID):
     """Library mug as the task assumes it: pos at the bounding-box centre, handle along body +x."""
     h = task.MUG_RIM_HEIGHT
-    off = task._rotate(quat, (task.MUG_HANDLE_OFFSET, 0.0, 0.0))
-    c = (ax + off[0], ay + off[1], T0 + h / 2)
+    off = task._rotate(quat, task.MUG_AXIS_FROM_POS)
+    c = (ax - off[0], ay - off[1], T0 + h / 2)
     r = task.MUG_BODY_RADIUS
     return S(c, quat, (ax - r, ay - r, T0), (ax + r + 2 * task.MUG_HANDLE_OFFSET, ay + r, T0 + h))
 
@@ -127,16 +127,16 @@ def mug(ax, ay, quat=ID):
 def coffee(ax, ay, dz=0.0):
     r = task.LAYOUT["coffee"]["radius"]
     h = task.LAYOUT["coffee"]["height"]
-    z0 = task.MUG_INNER_FLOOR + dz
+    z0 = task.COFFEE_INFO["coffee_bottom_above_mug_bottom_m"] + dz
     return S((ax, ay, T0 + z0 + h / 2), ID, (ax - r, ay - r, T0 + z0), (ax + r, ay + r, T0 + z0 + h))
 
 
 def nominal():
     return {
-        "scissors": scissors(0.26, 0.00, task.SCISSORS_HEIGHT / 2),
-        "towel_pad": box(0.26, 0.06, task._PAD_Z - 0.002, 0.120, 0.110, 0.008),
+        "knife": knife(0.26, 0.00, task.KNIFE_HEIGHT / 2),
+        "towel_pad": box(*L["towel_pad"]["xy"], task._PAD_Z - 0.002, 0.120, 0.110, 0.008),
         "towel_sheet": box(0.26, 0.00, task._SHEET_Z - 0.004, 0.260, 0.240, 0.0015),
-        "apple": sphere(0.26, 0.06, task._APPLE_Z - 0.007, 0.033),
+        "apple": sphere(*L["apple"]["xy"], task._APPLE_Z - 0.007, 0.033),
         "bowl": cyl(0.24, 0.26, 0.080, 0.055),
         "plate": cyl(0.26, -0.30, 0.100, task.PLATE_HEIGHT),
         "mug": mug(0.32, -0.16),
@@ -161,12 +161,12 @@ def towels_aside():
     }
 
 
-def scissors_on_plate(yaw_deg=-90.0, x=0.26, y=-0.30):
-    return scissors(x, y, task.PLATE_HEIGHT + task.SCISSORS_HEIGHT / 2, quat=qz(yaw_deg))
+def knife_on_plate(yaw_deg=-90.0, x=0.26, y=-0.30):
+    return knife(x, y, task.PLATE_HEIGHT + task.KNIFE_HEIGHT / 2, quat=qz(yaw_deg))
 
 
 def final_state():
-    return with_(nominal(), apple=apple_in_bowl(), scissors=scissors_on_plate(), **towels_aside())
+    return with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate(), **towels_aside())
 
 
 def reset():
@@ -196,25 +196,202 @@ def test_table_height_comes_from_the_scene_entry():
     assert task.TABLE_Z == task.TABLE_TOP[task.SCENE]
 
 
-def test_scissors_asset_has_been_chosen():
-    assert task.SCISSORS_ASSET != "SET_FROM_ARENA_LIBRARY", "pick the scissors from Arena's object library"
+def _usda_points(path):
+    """All point3f values of the visual mesh in a .usda (parsed as text; no pxr needed)."""
+    import re
+    text = path.read_text()
+    block = text.split('def Mesh "visual"', 1)[1].split("point3f[] points = [", 1)[1].split("]", 1)[0]
+    return [tuple(map(float, t)) for t in re.findall(r"\(([-\d.e]+), ([-\d.e]+), ([-\d.e]+)\)", block)]
 
 
-def test_scissors_frame_points_tip_to_plus_y_at_start():
-    tip, butt = task._scissors_ends(nominal()["scissors"])
+def test_local_asset_files_exist():
+    """Every model registered from assets/ is present."""
+    missing = [rel for rel in task.LOCAL_ASSETS.values() if not (task.HERE / rel).is_file()]
+    assert not missing, f"missing model files: {missing}"
+
+
+def test_knife_usd_matches_the_constants():
+    path = task.HERE / task.LOCAL_ASSETS[task.KNIFE_ASSET]
+    pts = _usda_points(path)
+    assert len(pts) > 1000
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    assert abs((hi[1] - lo[1]) - L["knife"]["length"]) < 1e-4, "length along y"
+    assert hi[1] - lo[1] > 5 * max(hi[0] - lo[0], hi[2] - lo[2]), "long axis is y"
+    assert abs((hi[2] - lo[2]) - task.KNIFE_HEIGHT) < 5e-4, "height"
+    assert all(abs(lo[i] + hi[i]) < 1e-5 for i in range(3)), "bounding-box centre at the origin"
+    assert abs(hi[1] - task.KNIFE_TIP_LOCAL[1]) < 1e-4 and abs(lo[1] - task.KNIFE_BUTT_LOCAL[1]) < 1e-4
+    assert lo[1] < task.KNIFE_HANDLE_END_Y < 0 < hi[1]
+    text = path.read_text()
+    assert "PhysicsRigidBodyAPI" in text and text.count("PhysicsCollisionAPI") == 3
+    assert (path.parent / "knife_texture.png").is_file()
+
+
+def test_approved_stack_is_centred_over_the_knife():
+    assert L["apple"]["xy"] == L["towel_pad"]["xy"] == L["knife"]["xy"]
+    # The apple's contact point and COM project inside both supporting towels.
+    for name in ("towel_pad", "towel_sheet"):
+        assert all(abs(L["apple"]["xy"][i] - L[name]["xy"][i]) < L[name]["size"][i] / 2 for i in (0, 1))
+
+
+def test_coffee_usd_fits_the_measured_mug_profile():
+    import numpy as np
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    info = task.COFFEE_INFO
+    stage = Usd.Stage.Open(str(task.HERE / task.LOCAL_ASSETS[task.COFFEE_ASSET]))
+    root = stage.GetDefaultPrim()
+    assert root.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not UsdPhysics.RigidBodyAPI(root).GetKinematicEnabledAttr().Get()
+    colliders = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.CollisionAPI)]
+    assert len(colliders) == 1
+    assert UsdPhysics.MeshCollisionAPI(colliders[0]).GetApproximationAttr().Get() == "convexHull"
+    points = np.asarray(UsdGeom.Mesh(colliders[0]).GetPointsAttr().Get())
+    assert len(points) == 64 < 255  # PhysX convex-hull vertex limit
+    bounds = UsdGeom.BBoxCache(0, ["default"]).ComputeWorldBound(root).ComputeAlignedRange()
+    assert all(abs(a + b) < 1e-7 for a, b in zip(bounds.GetMin(), bounds.GetMax()))
+    assert bounds.GetSize()[2] == pytest.approx(L["coffee"]["height"], abs=1e-7)
+    assert max(bounds.GetSize()[:2]) == pytest.approx(info["coffee_extent_m"], abs=1e-7)
+    radius = np.linalg.norm(points[:, :2], axis=1)
+    lower = float(radius[points[:, 2] < 0].max())
+    upper = float(radius[points[:, 2] > 0].max())
+    assert lower < upper
+    height = np.asarray(info["profile_heights_above_mug_bottom_m"])
+    fractions = (height - height[0]) / (height[-1] - height[0])
+    solid_radius = lower + fractions * (upper - lower)
+    assert np.min(np.asarray(info["profile_min_inner_radii_m"]) - solid_radius) >= 0.002 - 1e-7
+    assert info["floor_gap_min_m"] > 0.001
+    surface = info["coffee_bottom_above_mug_bottom_m"] + bounds.GetSize()[2]
+    assert task.MUG_RIM_HEIGHT - surface == pytest.approx(0.008, abs=1e-7)
+
+
+@pytest.mark.skipif(not REAL, reason="needs the real yam_arena")
+def test_coffee_height_adapter_is_scoped_and_idempotent(monkeypatch):
+    import numpy as np
+    from yam_arena import station
+
+    original = station.placement._unbury_original
+    monkeypatch.setattr(station, "placement", original)
+    assert task._install_coffee_placement()
+    assert task._install_coffee_placement()
+    assert station.placement._unbury_original is original
+    lo, hi = (-0.04, -0.04, -0.05), (0.04, 0.04, 0.05)
+    ordinary = station.Item("mug", (0.30, -0.10), 0.120, yaw=0.0)
+    assert station.placement(ordinary, lo, hi) == original(ordinary, lo, hi)
+    item = station.Item(task.COFFEE_ASSET, L["coffee"]["xy"], task.COFFEE_INFO["coffee_extent_m"], yaw=0.0)
+    h, r = L["coffee"]["height"], L["coffee"]["radius"]
+    scale, pos, _ = station.placement(item, (-r, -r, -h / 2), (r, r, h / 2))
+    assert scale == pytest.approx(1.0)
+    assert np.asarray(pos)[:2] == pytest.approx(L["coffee"]["xy"])
+    # Includes the same 1 mm rest gap as the mug, plus its measured inner floor.
+    assert pos[2] - h / 2 == pytest.approx(T0 + station.REST_GAP + task.COFFEE_INFO["coffee_bottom_above_mug_bottom_m"])
+
+
+@pytest.mark.parametrize("name,width,min_depth", [("bowl", 0.160, 0.040), ("plate", 0.200, 0.010)])
+def test_container_usd_has_portable_texture_and_open_collision(name, width, min_depth):
+    """The actual USD collider must retain the cavity under the opening, at the scene's scale."""
+    pytest.importorskip("pxr")
+    import numpy as np
+    from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
+
+    stage = Usd.Stage.Open(str(task.HERE / task.LOCAL_ASSETS[f"{name}_ycb_local"]))
+    root = stage.GetDefaultPrim()
+    assert UsdGeom.GetStageMetersPerUnit(stage) == 1.0
+    assert UsdGeom.GetStageUpAxis(stage) == UsdGeom.Tokens.z
+    assert UsdPhysics.RigidBodyAPI(root).GetKinematicEnabledAttr().Get() is True
+    bounds = UsdGeom.BBoxCache(0, ["default"]).ComputeWorldBound(root).ComputeAlignedRange()
+    assert max(bounds.GetSize()[:2]) == pytest.approx(width, abs=1e-6)
+    assert all(abs(a + b) < 1e-6 for a, b in zip(bounds.GetMin(), bounds.GetMax()))
+
+    visual = UsdGeom.Mesh(stage.GetPrimAtPath(f"{root.GetPath()}/visual"))
+    material, _ = UsdShade.MaterialBindingAPI(visual).ComputeBoundMaterial()
+    assert material
+    texture = stage.GetPrimAtPath(f"{material.GetPath()}/Texture").GetAttribute("inputs:file").Get()
+    assert not pathlib.Path(texture.path).is_absolute()
+    assert pathlib.Path(texture.resolvedPath).is_file()
+    uv = UsdGeom.PrimvarsAPI(visual).GetPrimvar("st")
+    assert len(uv.ComputeFlattened()) == len(visual.GetFaceVertexIndicesAttr().Get())
+    assert len(visual.GetNormalsAttr().Get()) == len(uv.ComputeFlattened())
+
+    colliders = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.CollisionAPI)]
+    assert colliders
+    centre_hits = []
+    for prim in colliders:
+        assert UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "none"
+        mesh = UsdGeom.Mesh(prim)
+        assert set(mesh.GetFaceVertexCountsAttr().Get()) == {3}
+        points = np.asarray(mesh.GetPointsAttr().Get())
+        faces = np.asarray(mesh.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
+        triangles = points[faces].astype(float)
+        # A ray down the opening must hit the container floor, below its rim.
+        u = triangles[:, 1, :2] - triangles[:, 0, :2]
+        v = triangles[:, 2, :2] - triangles[:, 0, :2]
+        q = -triangles[:, 0, :2]
+        det = u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
+        valid = abs(det) > 1e-14
+        denominator = np.where(valid, det, 1.0)
+        b = (q[:, 0] * v[:, 1] - q[:, 1] * v[:, 0]) / denominator
+        c = (u[:, 0] * q[:, 1] - u[:, 1] * q[:, 0]) / denominator
+        hit = valid & (b >= -1e-10) & (c >= -1e-10) & (b + c <= 1 + 1e-10)
+        z = triangles[:, 0, 2] + b * (triangles[:, 1, 2] - triangles[:, 0, 2])
+        z += c * (triangles[:, 2, 2] - triangles[:, 0, 2])
+        centre_hits.extend(z[hit])
+    assert centre_hits, "the container needs a collision floor"
+    assert bounds.GetMax()[2] - max(centre_hits) > min_depth, "collision must not cap the opening"
+
+
+def test_grip_is_on_the_handle():
+    """The demo grips the knife on its handle, between the handle's end and where the handle ends."""
+    y = -task.GRASP_FROM_CENTRE
+    assert task.KNIFE_BUTT_LOCAL[1] + 0.01 < y < task.KNIFE_HANDLE_END_Y - 0.01
+
+
+def test_local_assets_register_once(monkeypatch):
+    calls = []
+
+    class FakeRegistry:
+        components = {}
+
+        def is_registered(self, key, ensure_loaded=True):
+            assert ensure_loaded is False, "loading the whole library before Isaac Sim starts crashes it"
+            return key in self.components
+
+        def register(self, component, key=None):
+            assert key not in self.components
+            self.components[key] = component
+            calls.append(key)
+
+    mod = types.ModuleType("isaaclab_arena.assets.registries")
+    mod.AssetRegistry = FakeRegistry
+    for name in ("isaaclab_arena", "isaaclab_arena.assets"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, "isaaclab_arena.assets.registries", mod)
+    assert task.register_local_assets() is True
+    assert task.register_local_assets() is True
+    assert sorted(calls) == sorted(task.LOCAL_ASSETS)
+    knife = FakeRegistry.components[task.KNIFE_ASSET]
+    assert knife.usd_path == str(task.HERE / task.LOCAL_ASSETS[task.KNIFE_ASSET])
+
+
+def test_knife_asset_has_been_chosen():
+    assert task.KNIFE_ASSET != "SET_FROM_ARENA_LIBRARY", "pick the knife from Arena's object library"
+
+
+def test_knife_frame_points_tip_to_plus_y_at_start():
+    tip, butt = task._knife_ends(nominal()["knife"])
     assert tip[1] > butt[1]
 
 
 def test_straight_carry_would_cross_the_keepout():
-    """The design premise: the obvious route from the scissors to the plate passes the mug."""
-    gx0, gy0 = L["scissors"]["xy"][0], L["scissors"]["xy"][1] - task.GRASP_FROM_CENTRE
+    """The design premise: the obvious route from the knife to the plate passes the mug."""
+    gx0, gy0 = L["knife"]["xy"][0], L["knife"]["xy"][1] - task.GRASP_FROM_CENTRE
     gx1, gy1 = L["plate"]["xy"][0] - task.GRASP_FROM_CENTRE, L["plate"]["xy"][1]
     worst = math.inf
     for i in range(101):
         t = i / 100
         g = (gx0 + t * (gx1 - gx0), gy0 + t * (gy1 - gy0))
-        k = scissors(g[0] + task.GRASP_FROM_CENTRE, g[1], 0.10, quat=qz(-90))
-        worst = min(worst, task._scissors_mug_hdist({"scissors": k, "mug": nominal()["mug"]}))
+        k = knife(g[0] + task.GRASP_FROM_CENTRE, g[1], 0.10, quat=qz(-90))
+        worst = min(worst, task._knife_mug_hdist({"knife": k, "mug": nominal()["mug"]}))
     assert worst < task.TH["keepout_radius"]
 
 
@@ -243,8 +420,8 @@ def test_apple_and_towels():
 
 
 @pytest.mark.parametrize("yaw", [90, 180, -45])
-def test_scissors_on_plate_pointing_wrong_way_is_075(yaw):
-    w = with_(final_state(), scissors=scissors_on_plate(yaw_deg=yaw))
+def test_knife_on_plate_pointing_wrong_way_is_075(yaw):
+    w = with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))
     assert run([nominal(), w]) is False
     assert task.score(w) == 0.75
 
@@ -255,12 +432,12 @@ def test_full_success_and_score_capped_at_075():
 
 
 @pytest.mark.parametrize("yaw,ok", [(-90 + 24, True), (-90 - 24, True), (-90 + 26, False)])
-def test_scissors_direction_boundary(yaw, ok):
-    assert task._scissors_set(with_(final_state(), scissors=scissors_on_plate(yaw_deg=yaw))) is ok
+def test_knife_direction_boundary(yaw, ok):
+    assert task._knife_set(with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))) is ok
 
 
 def test_tiers_do_not_skip_towels():
-    w = with_(nominal(), apple=apple_in_bowl(), scissors=scissors_on_plate())
+    w = with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate())
     run([nominal(), w])
     assert task.score(w) == 0.25
 
@@ -302,10 +479,11 @@ def test_coffee_settling_in_the_mug_is_not_spill():
 def test_spill_is_measured_from_start_not_from_layout(monkeypatch):
     """If the mug's pos turns out not to be its bounding-box centre, a calibrated
     POS_OFFSET keeps the layout check passing and the shift is still measured from the start."""
+    before = nominal()
     monkeypatch.setitem(task.POS_OFFSET, "mug", (0.012, 0.0))
     monkeypatch.setattr(task, "MUG_AXIS_FROM_POS", (-(task.MUG_HANDLE_OFFSET + 0.012), 0.0, 0.0))
-    first = with_(nominal(), mug=S(tuple(c + d for c, d in zip(nominal()["mug"].pos, (0.012, 0, 0))), ID,
-                                  nominal()["mug"].low, nominal()["mug"].high))
+    first = with_(before, mug=S(tuple(c + d for c, d in zip(before["mug"].pos, (0.012, 0, 0))), ID,
+                                before["mug"].low, before["mug"].high))
     reset()
     task.success(first)
     assert task._STATE["bad_layout"] is False
@@ -328,8 +506,8 @@ def test_slow_restore_does_not_clear_latch():
     assert task._STATE["zero"] == "coffee spilt"
 
 
-def test_scissors_off_table_is_zero():
-    gone = with_(nominal(), scissors=scissors(0.6, -0.4, -0.3))
+def test_knife_off_table_is_zero():
+    gone = with_(nominal(), knife=knife(0.6, -0.4, -0.3))
     run([nominal(), gone, final_state()])
     assert task.score(final_state()) == 0.0
 
@@ -342,29 +520,49 @@ def test_apple_touching_table_loses_apple_tier_for_good():
     assert task.success(final_state()) is False
 
 
+def test_rotated_sphere_box_does_not_falsely_bruise_the_apple():
+    # Recorded first state of smoke v2: cached rotated cube bottom is below the
+    # table, but the true 33 mm sphere bottom is 9.121 mm ABOVE the table.
+    a = S((0.173294, 0.077312, 0.789621), qx(40),
+          (0.12, 0.02, 0.736579), (0.23, 0.13, 0.842663))
+    w = with_(nominal(), apple=a)
+    assert task._apple_bottom(w) == pytest.approx(0.009121)
+    assert not task._apple_touches_table(w)
+    run([nominal(), w, final_state()])
+    assert not task._STATE["apple_bruised"]
+    assert task.success(final_state())
+
+
+def test_rotating_in_bowl_does_not_change_sphere_height_check():
+    a = apple_in_bowl()
+    a.quat_xyzw = qx(45)
+    a.low = (a.low[0], a.low[1], T0 - 0.010)
+    assert task._apple_in_bowl(with_(final_state(), apple=a))
+
+
 def test_apple_low_in_bowl_is_not_a_bruise():
     low = with_(nominal(), apple=sphere(0.24, 0.26, 0.034, 0.033))
     run([nominal(), low])
     assert task._STATE["apple_bruised"] is False
 
 
-def test_scissors_through_keepout_caps_half():
-    through = with_(nominal(), scissors=scissors(0.33, -0.12, 0.10, quat=qz(-90)))
+def test_knife_through_keepout_caps_half():
+    through = with_(nominal(), knife=knife(0.33, -0.12, 0.10, quat=qz(-90)))
     assert run([nominal(), through, final_state()]) is False
-    assert task._STATE["cap_half"] == "scissors near the mug"
+    assert task._STATE["cap_half"] == "knife near the mug"
     assert task.score(final_state()) == 0.5
 
 
-def test_scissors_on_table_is_not_lifted():
-    assert task._scissors_lifted(nominal()) is False
-    assert task._scissors_in_keepout(nominal()) is False
+def test_knife_on_table_is_not_lifted():
+    assert task._knife_lifted(nominal()) is False
+    assert task._knife_in_keepout(nominal()) is False
 
 
-def test_dropped_scissors_caps_half():
-    falling = with_(nominal(), scissors=scissors(0.12, -0.30, 0.15, quat=qz(-90), vel=(0, 0, -1.2)))
-    assert task._scissors_in_keepout(falling) is False
+def test_dropped_knife_caps_half():
+    falling = with_(nominal(), knife=knife(0.12, -0.30, 0.15, quat=qz(-90), vel=(0, 0, -1.2)))
+    assert task._knife_in_keepout(falling) is False
     run([nominal(), falling, final_state()])
-    assert task._STATE["cap_half"] == "scissors dropped"
+    assert task._STATE["cap_half"] == "knife dropped"
     assert task.score(final_state()) == 0.5
 
 
@@ -382,6 +580,26 @@ def test_apple_held_above_bowl_does_not_count():
     w = with_(nominal(), apple=sphere(0.24, 0.26, 0.15, 0.033), **towels_aside())
     run([nominal(), w])
     assert task.score(w) == 0.0
+
+
+@pytest.mark.parametrize("bottom,ok", [(-T0, False), (-0.010, False), (-0.0031, False),
+                                       (-0.0029, True), (0.001, True)])
+def test_apple_below_table_does_not_count_as_in_bowl(bottom, ok):
+    a = sphere(*L["bowl"]["xy"], bottom + L["apple"]["radius"], L["apple"]["radius"])
+    w = with_(final_state(), apple=a)
+    assert run([nominal(), w]) is ok
+    assert task.score(w) == (0.75 if ok else 0.0)
+
+
+@pytest.mark.parametrize("name", ["towel_sheet", "towel_pad"])
+@pytest.mark.parametrize("bottom,ok", [(-T0, False), (-0.010, False), (-0.0031, False),
+                                       (-0.0029, True), (0.0, True)])
+def test_towel_below_table_does_not_count_as_cleared(name, bottom, ok):
+    towel = towels_aside()[name]
+    size = L[name]["size"]
+    w = with_(final_state(), **{name: box(*towel.pos[:2], bottom + size[2] / 2, *size)})
+    assert run([nominal(), w]) is ok
+    assert task.score(w) == (0.75 if ok else 0.25)
 
 
 def test_towel_dropped_into_bowl_is_not_cleared():
@@ -404,21 +622,21 @@ def test_towel_nudged_aside_but_not_cleared():
     assert task._towels_cleared(w) is False
 
 
-def test_scissors_held_above_plate_is_not_on_plate():
-    w = with_(final_state(), scissors=scissors(0.26, -0.30, 0.12, quat=qz(-90)))
+def test_knife_held_above_plate_is_not_on_plate():
+    w = with_(final_state(), knife=knife(0.26, -0.30, 0.12, quat=qz(-90)))
     run([nominal(), w])
     assert task.score(w) == 0.5
 
 
-def test_scissors_standing_on_plate_is_not_set():
-    w = with_(final_state(), scissors=scissors(0.26, -0.30, task.PLATE_HEIGHT + 0.03, quat=qx(-30)))
-    assert task._scissors_set(w) is False
+def test_knife_standing_on_plate_is_not_set():
+    w = with_(final_state(), knife=knife(0.26, -0.30, task.PLATE_HEIGHT + 0.03, quat=qx(-30)))
+    assert task._knife_set(w) is False
 
 
 def test_moving_objects_block_success():
-    k = scissors_on_plate()
+    k = knife_on_plate()
     k.lin_vel = (0.05, 0, 0)
-    assert run([nominal(), with_(final_state(), scissors=k)]) is False
+    assert run([nominal(), with_(final_state(), knife=k)]) is False
 
 
 def test_bad_initial_layout_fails_closed():
@@ -469,12 +687,21 @@ def test_distance_decreases_toward_goal():
 
 
 def test_debug_print_does_not_change_result(capsys, monkeypatch):
+    import json
+
     monkeypatch.setattr(task, "DEBUG", True)
     frames = [nominal()] * 21 + [final_state()]
     assert run(frames) is True
     out = capsys.readouterr().out
     assert "task_progress steps=1 " in out and "task_progress steps=20 " in out
-    assert out.count("task_calib ") == 1 and "scissors_quat_xyzw=" in out
+    assert out.count("task_calib ") == 1 and "knife_quat_xyzw=" in out
+    snapshots = [json.loads(line.removeprefix("task_state ")) for line in out.splitlines()
+                 if line.startswith("task_state ")]
+    assert [s["step"] for s in snapshots] == [1, 20, 21]
+    assert set(snapshots[0]["objects"]) == set(L)
+    assert snapshots[0]["objects"]["coffee"]["lin_vel"] == [0.0, 0.0, 0.0]
+    assert snapshots[0]["coffee_axis_gap"] == 0.0
+    assert snapshots[0]["checks"]["apple_in_bowl"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -510,9 +737,9 @@ def _carry(wps, start_centre, close_label, release_label):
     return centre, path
 
 
-def test_demo_scissors_ends_on_plate_pointing_away_and_never_nears_the_mug():
+def test_demo_knife_ends_on_plate_pointing_away_and_never_nears_the_mug():
     right = task.demo()["right"]
-    kx, ky = L["scissors"]["xy"]
+    kx, ky = L["knife"]["xy"]
     centre, path = _carry(right, (kx, ky), "close on the handle", "release")
     assert math.hypot(centre[0] - L["plate"]["xy"][0], centre[1] - L["plate"]["xy"][1]) < 0.005
     _, final_turn, _ = path[-1]
@@ -522,8 +749,8 @@ def test_demo_scissors_ends_on_plate_pointing_away_and_never_nears_the_mug():
     for c, a, rise in path:
         if rise <= task.TH["lift"]:
             continue
-        k = scissors(c[0], c[1], 0.10, quat=qz(math.degrees(a)))
-        closest = min(closest, task._scissors_mug_hdist({"scissors": k, "mug": mug}))
+        k = knife(c[0], c[1], 0.10, quat=qz(math.degrees(a)))
+        closest = min(closest, task._knife_mug_hdist({"knife": k, "mug": mug}))
     assert closest > task.TH["keepout_radius"] + 0.01
 
 
@@ -559,6 +786,16 @@ def test_demo_fits_the_run_limit():
     plan = task.demo()
     longest = max(sum(w.duration for w in wps) for wps in plan.values())
     assert longest * HZ < 3600 * 0.5
+
+
+def test_calibration_stage_holds_both_arms_clear_of_objects(monkeypatch):
+    monkeypatch.setenv("TASK_CALIBRATION", "1")
+    plan = task.demo()
+    assert set(plan) == {"left", "right"}
+    for arm, waypoints in plan.items():
+        assert sum(w.duration for w in waypoints) >= 5.0
+        assert all(w.finger == task.FINGER_OPEN for w in waypoints)
+        assert all(w.pos[2] >= T0 + 0.15 for w in waypoints)
 
 
 # ---------------------------------------------------------------------------

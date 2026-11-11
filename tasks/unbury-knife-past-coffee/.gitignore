@@ -1,0 +1,11 @@
+__pycache__/
+.pytest_cache/
+.DS_Store
+*.pyc
+*.tgz
+*.tar
+*.gz
+*.zip
+*.sha256
+handoff/
+runs/

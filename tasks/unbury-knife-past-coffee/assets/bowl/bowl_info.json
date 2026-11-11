@@ -1,0 +1,35 @@
+{
+  "source": "024_bowl/google_16k",
+  "source_website": "https://www.ycbbenchmarks.com/",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "citation": "B. Calli et al., \"Benchmarking in Manipulation Research: Using the Yale-CMU-Berkeley Object and Model Set,\" IEEE Robotics & Automation Magazine 22(3):36-52, 2015.",
+  "source_sha256": {
+    "textured.obj": "0f134a66c903353a157d8bb10c901c824462438e4dbf7b72d800d535190f0c35",
+    "textured.mtl": "a779e1d8a29bdbc18ee724b7faa2e1e53591cbc2ee451ff38c64df7222c3f31e",
+    "texture_map.png": "5f54ed5a1569e3d2d3e475feacba51340f65b40cdb77420bcd1cb943d451ed9b"
+  },
+  "scale_from_scan": 0.9909391005988987,
+  "size": [
+    0.1599999964237213,
+    0.15970371663570404,
+    0.05451056733727455
+  ],
+  "bbox_low": [
+    -0.07999999821186066,
+    -0.07985185831785202,
+    -0.027255283668637276
+  ],
+  "bbox_high": [
+    0.07999999821186066,
+    0.07985185831785202,
+    0.027255283668637276
+  ],
+  "centre_surface_height_from_bottom": 0.0023741895797285695,
+  "cavity_depth_from_highest_rim": 0.05213637775754598,
+  "visual_triangles": 16384,
+  "collision_triangles": 16378,
+  "collision_degenerate_triangles_removed": 6,
+  "collision_approximation": "none",
+  "kinematic": true
+}
