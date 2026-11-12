@@ -1,5 +1,5 @@
 """Station table after someone cut fruit on it. Near the middle, a thick folded wad of white paper towels lies on
-the table with a large paper-towel sheet over it and a red apple on top. The sheet reaches past the wad on the side
+the table with a large paper-towel sheet over it and half a red apple on top, cut side down. The sheet reaches past the wad on the side
 away from the robot and hides most of a small knife lying flat on the table there, blade toward the robot's left;
 only the knife's red handle sticks out from under the sheet's right edge. To the left is an empty bowl. To the right,
 close to the robot, is a clean plate. Further out on the right, between the towels and the plate, stands a white
@@ -12,7 +12,7 @@ import os
 import pathlib
 
 from yam_arena.demo import FINGER_CLOSED, FINGER_OPEN, Waypoint, pick_place_waypoints
-from yam_arena.task_file import TABLE_TOP, Asset, Box, Sphere
+from yam_arena.task_file import TABLE_TOP, Asset, Box, Cylinder
 
 SCENE = "station"
 SCORE_OVER = "end"
@@ -83,12 +83,14 @@ POS_OFFSET = {}
 LAYOUT = {
     "knife": {"xy": (0.26, 0.00), "length": 0.170},
     # The wad lies on the table beside the knife and carries the sheet and the apple, so every support under the
-    # apple is level by construction (the apple is a sphere: any tilt at all rolls it away). The sheet overhangs
+    # apple is level by construction. The apple is half an apple lying cut side down (a short cylinder): a whole
+    # sphere is in neutral equilibrium on any movable support and rolled off in the first GPU run, driven by a
+    # 0.03-0.05 degree solver tilt of the sheet. The flat face only tips past ~66 degrees. The sheet overhangs
     # the knife without touching it: the wad is thicker than the knife. Only the handle sticks out past the
     # sheet's -y edge. test_task.py checks every clearance below against the knife model.
     "towel_pad": {"xy": (0.18, 0.065), "size": (0.110, 0.110, 0.016)},
     "towel_sheet": {"xy": (0.20, 0.065), "size": (0.200, 0.180, 0.0015)},
-    "apple": {"xy": (0.18, 0.065), "radius": 0.033},
+    "apple": {"xy": (0.18, 0.065), "radius": 0.033, "height": 0.030},  # half apple, cut side down
     "bowl": {"xy": (0.24, 0.26), "extent": 0.160},
     "plate": {"xy": (0.26, -0.30), "radius": 0.100},
     "mug": {"axis_xy": (0.32, -0.16)},
@@ -106,7 +108,7 @@ PAPER = (0.97, 0.97, 0.95)
 SPAWN_GAP = 0.001
 _PAD_Z = LAYOUT["towel_pad"]["size"][2] / 2 + SPAWN_GAP
 _SHEET_Z = LAYOUT["towel_pad"]["size"][2] + LAYOUT["towel_sheet"]["size"][2] / 2 + 2 * SPAWN_GAP
-_APPLE_Z = _SHEET_Z + LAYOUT["towel_sheet"]["size"][2] / 2 + LAYOUT["apple"]["radius"] + SPAWN_GAP
+_APPLE_Z = _SHEET_Z + LAYOUT["towel_sheet"]["size"][2] / 2 + LAYOUT["apple"]["height"] / 2 + SPAWN_GAP
 
 OBJECTS = [
     Asset("knife", KNIFE_ASSET, xy=LAYOUT["knife"]["xy"], extent=LAYOUT["knife"]["length"], mass=0.050,
@@ -115,8 +117,8 @@ OBJECTS = [
         mass=0.006, color=PAPER),
     Box("towel_sheet", pos=(*LAYOUT["towel_sheet"]["xy"], TABLE_Z + _SHEET_Z),
         size=LAYOUT["towel_sheet"]["size"], mass=0.004, color=PAPER),
-    Sphere("apple", pos=(*LAYOUT["apple"]["xy"], TABLE_Z + _APPLE_Z), radius=LAYOUT["apple"]["radius"],
-           mass=0.12, color=APPLE_RED),
+    Cylinder("apple", pos=(*LAYOUT["apple"]["xy"], TABLE_Z + _APPLE_Z), radius=LAYOUT["apple"]["radius"],
+             height=LAYOUT["apple"]["height"], mass=0.06, color=APPLE_RED),
     Asset("bowl", "bowl_ycb_local", xy=LAYOUT["bowl"]["xy"], extent=LAYOUT["bowl"]["extent"]),
     Asset("plate", "plate_ycb_local", xy=LAYOUT["plate"]["xy"], extent=2 * LAYOUT["plate"]["radius"]),
     Asset("mug", MUG_ASSET, xy=LAYOUT["mug"]["xy"], extent=MUG_EXTENT, mass=MUG_MASS, color=WHITE,
@@ -135,7 +137,8 @@ TH = {
     "touch": 0.003,  # table contact tolerance; also the maximum permitted penetration below the table
     "drop_speed": 0.8,  # m/s downward
     "apple_axis": 0.040,
-    "apple_z_max": 0.060,  # apple centre height when sitting in the bowl
+    "apple_z_max": 0.060,  # apple centre height when sitting in the bowl (not perched on the rim)
+    "apple_upright_tol": 0.005,  # start-of-episode check of the apple's box height
     "towel_high_max": 0.030,  # a cleared towel lies low on the table
     "towel_moved": 0.10,  # a cleared towel has moved this far from where it started
     "knife_flat_deg": 10.0,
@@ -264,9 +267,23 @@ def _apple_touches_table(o):
 
 
 def _apple_bottom(o):
-    # Arena rotates the cached bounding BOX, even for a sphere. Its low.z can
-    # grow downward as the apple spins. The analytic sphere bottom is invariant.
-    return _z(o["apple"].pos) - LAYOUT["apple"]["radius"]
+    """Lowest point of the half apple (a cylinder), from its pose.
+
+    Arena reports a rotated bounding BOX, whose corners reach lower than the round rim when the apple tilts.
+    The exact lowest point of a cylinder whose axis has vertical component u_z is
+    centre - (h/2)|u_z| - r*sqrt(1 - u_z^2); it does not change with yaw.
+    """
+    a = o["apple"]
+    x, y, _, _ = (float(v) for v in a.quat_xyzw)
+    uz = max(-1.0, min(1.0, 1.0 - 2.0 * (x * x + y * y)))
+    r, h = LAYOUT["apple"]["radius"], LAYOUT["apple"]["height"]
+    return _z(a.pos) - h / 2 * abs(uz) - r * math.sqrt(max(0.0, 1.0 - uz * uz))
+
+
+def _apple_upright(o):
+    """Fail-closed check that the framework's Cylinder stands on its axis: upright, its box is h tall, not 2r."""
+    a = o["apple"]
+    return abs(float(a.high[2]) - float(a.low[2]) - LAYOUT["apple"]["height"]) <= TH["apple_upright_tol"]
 
 
 def _apple_in_bowl(o):
@@ -379,7 +396,7 @@ def _observe(o):
         _STATE.update(_fresh_state())
         _STATE["bad_layout"] = not all(
             n in o and _hdist(o[n].pos, _expected_xy(n)) <= TH["layout_tol"] for n in LAYOUT
-        )
+        ) or not _apple_upright(o)
         _STATE["start"] = {"mug_axis": _mug_axis(o)}
     _STATE["steps"] += 1
     _STATE["prev"] = _positions(o)

@@ -1,22 +1,28 @@
 # Uncover the knife and set it on the plate without going near the full mug
 
 A small knife lies flat on the table beside a folded wad of paper towels. A large paper-towel sheet rests on the wad
-with an apple on top and covers the knife except for its red handle. The robot puts the apple in the bowl, clears
+with half an apple on top, cut side down, and covers the knife except for its red handle. The robot puts the apple half in the bowl, clears
 both towels away, and lays the knife on a plate with the handle toward the robot and the blade pointing away. A mug
 that the instruction says is full of hot coffee stands next to the straight path from the knife to the plate.
 
 What it tests:
 
 - **Covered blade.** Only the handle shows at the start; the blade runs on under the towels, and the instruction only says the knife is partly under them.
-- **Order.** Pulling the sheet before lifting the apple rolls the apple onto the table, and that cannot be undone.
+- **Order.** Pulling the sheet before lifting the half apple drops it onto the table, and that cannot be undone.
 - **Keep-out around an open drink.** The obvious straight carry clips the mug's keep-out zone, so the knife has to go round it.
 - **Final pose.** The knife must end flat on the plate, blade pointing away from the robot.
 
 **Status:** scoring, scripted `demo()` and CPU tests are written. The knife, bowl and plate models are included
 in `assets/`. Scoring rejects apples and towels below the table, allowing the existing 3 mm contact tolerance.
 The layout with the wad beside the knife (every support under the apple lies on the table, and the sheet does
-not touch the knife), the full-weight empty mug and the analytic sphere-height check are covered by 89 CPU tests;
+not touch the knife), the full-weight empty mug and the half apple's exact lowest-point check are covered by 93 CPU tests;
 their simulator contacts and full demo remain unverified. `scores` and `media` remain TODO until validated GPU runs and uploads.
+
+**GPU static calibration, commit 887679a (100 steps):** mug, wad and knife stayed put (mug tilt 0.22°, axis shift
+< 0.3 mm, resting speed at most 1.3 mm/s). The apple, then modelled as a 66 mm sphere, rolled off: the sheet on the wad
+settled 0.03-0.05° off level, which accelerated the sphere at about 0.0045 m/s² until it passed the wad's edge
+and tipped the sheet. A sphere has no resting position on a movable support, so the apple is now half an apple
+lying cut side down. This layout has not yet been run on GPU.
 
 ## Files
 
@@ -74,7 +80,7 @@ git rev-parse HEAD
 python tasks/unbury-knife-past-coffee/run_gpu.py check
 ```
 
-The preflight should report 89 passing tests without skips. For later revisions, in that checkout run
+The preflight should report 93 passing tests without skips. For later revisions, in that checkout run
 `git pull --ff-only origin unbury-knife-past-coffee`, compare `git rev-parse HEAD` with the pushed local
 commit, and rerun preflight. If local edits prevent updating, inspect them before replacing any files.
 
@@ -158,7 +164,7 @@ one; holding the knife by its handle (body-frame y below -17 mm) is the next add
 | Keep-out radius | 77.45 mm | Measured cup radius + 30 mm, around the cup's axis |
 | Knife lifted | Lowest point 15 mm above the table | |
 | Knife fall speed | 0.8 m/s | |
-| Apple in bowl | Within 40 mm of the bowl centre, centre < 60 mm high, sphere bottom ≥ -3 mm relative to the table | Bottom = centre height minus 33 mm, invariant under rotation |
+| Apple in bowl | Within 40 mm of the bowl centre, centre < 60 mm high, lowest point ≥ -3 mm relative to the table | Lowest point of the 66 x 30 mm cylinder from its pose: centre - (h/2)·|u_z| - r·√(1-u_z²), u_z the axis's vertical component; unchanged by yaw or flipping |
 | Towel cleared | Moved ≥ 100 mm, lowest point ≥ -3 mm and top ≤ 30 mm relative to the table, off the knife and plate, not in the bowl or on the mug | 3 mm contact tolerance |
 | Knife on plate | Centre over the plate, lowest point within 20 mm above the plate top | |
 | Knife set | Both ends over the plate, within 10° of flat, handle-to-tip line within 25° of +x | |
@@ -187,8 +193,8 @@ Rigid bodies only. The paper towels are rigid thin plates, so the sheet rests on
 onto the knife as real paper would; the coffee is not modelled: the mug has the mass of a full cup (its centre of
 mass is that of the empty shape, so slightly high), the camera sees an empty white cup, and spilling is judged from
 the mug's tilt and shift; the knife is one rigid body colliding as three convex hulls,
-and its scan adds a few millimetres of spurious thickness under the polished blade; the apple is a sphere because
-library models can only rest on the table.
+and its scan adds a few millimetres of spurious thickness under the polished blade; the half apple is a plain red
+cylinder (66 x 30 mm, 60 g) because library models can only rest on the table, not on the towels.
 
 ## Licence
 

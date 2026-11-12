@@ -101,8 +101,26 @@ def cyl(x, y, r, h, quat=ID):
     return S((x, y, T0 + h / 2), quat, (x - r, y - r, T0), (x + r, y + r, T0 + h))
 
 
-def sphere(x, y, z, r, vel=(0, 0, 0)):
-    return S((x, y, T0 + z), ID, (x - r, y - r, T0 + z - r), (x + r, y + r, T0 + z + r), lin_vel=vel)
+def _rotate(q, v):
+    x, y, z, w = q
+    m = ((1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)),
+         (2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)),
+         (2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)))
+    return tuple(sum(m[i][j] * v[j] for j in range(3)) for i in range(3))
+
+
+def half_apple(x, y, z, quat=ID, vel=(0, 0, 0)):
+    """The half apple at centre height z, with low/high as Arena reports them: its rotated bounding box."""
+    r, h = L["apple"]["radius"], L["apple"]["height"]
+    corners = [_rotate(quat, (sx * r, sy * r, sz * h / 2)) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+    c = (x, y, T0 + z)
+    low = tuple(c[i] + min(p[i] for p in corners) for i in range(3))
+    high = tuple(c[i] + max(p[i] for p in corners) for i in range(3))
+    return S(c, quat, low, high, lin_vel=vel)
+
+
+HALF_H = L["apple"]["height"] / 2
+BOWL_FLOOR = 0.0024  # bowl_info.json: centre surface 2.37 mm above its bottom
 
 
 def knife(x, y, z, quat=ID, vel=(0, 0, 0)):
@@ -129,7 +147,7 @@ def nominal():
         "knife": knife(0.26, 0.00, task.KNIFE_HEIGHT / 2),
         "towel_pad": box(*L["towel_pad"]["xy"], task._PAD_Z - task.SPAWN_GAP, *L["towel_pad"]["size"]),
         "towel_sheet": box(*L["towel_sheet"]["xy"], task._SHEET_Z - 2 * task.SPAWN_GAP, *L["towel_sheet"]["size"]),
-        "apple": sphere(*L["apple"]["xy"], task._APPLE_Z - 3 * task.SPAWN_GAP, 0.033),
+        "apple": half_apple(*L["apple"]["xy"], task._APPLE_Z - 3 * task.SPAWN_GAP),
         "bowl": cyl(0.24, 0.26, 0.080, 0.055),
         "plate": cyl(0.26, -0.30, 0.100, task.PLATE_HEIGHT),
         "mug": mug(0.32, -0.16),
@@ -143,7 +161,7 @@ def with_(base, **kw):
 
 
 def apple_in_bowl():
-    return sphere(0.24, 0.26, 0.045, 0.033)
+    return half_apple(0.24, 0.26, BOWL_FLOOR + HALF_H)
 
 
 def towels_aside():
@@ -297,7 +315,7 @@ def test_spawn_stack_has_no_initial_overlap():
     pad_top = task._PAD_Z + L["towel_pad"]["size"][2] / 2
     sheet_half = L["towel_sheet"]["size"][2] / 2
     assert task._SHEET_Z - sheet_half - pad_top == pytest.approx(task.SPAWN_GAP)
-    assert task._APPLE_Z - L["apple"]["radius"] - (task._SHEET_Z + sheet_half) == pytest.approx(task.SPAWN_GAP)
+    assert task._APPLE_Z - L["apple"]["height"] / 2 - (task._SHEET_Z + sheet_half) == pytest.approx(task.SPAWN_GAP)
 
 
 def test_sheet_hides_the_blade_and_shows_the_handle():
@@ -476,7 +494,7 @@ def test_tiers_do_not_skip_towels():
 
 
 def test_no_apple_means_zero_even_if_rest_done():
-    w = with_(final_state(), apple=sphere(0.10, 0.25, task._APPLE_Z, 0.033))
+    w = with_(final_state(), apple=half_apple(0.10, 0.25, task._APPLE_Z))
     run([nominal(), w])
     assert task.score(w) == 0.0
 
@@ -540,35 +558,62 @@ def test_knife_off_table_is_zero():
 
 
 def test_apple_touching_table_loses_apple_tier_for_good():
-    on_table = with_(nominal(), apple=sphere(0.40, 0.10, 0.033, 0.033))
+    on_table = with_(nominal(), apple=half_apple(0.40, 0.10, HALF_H))
     run([nominal(), on_table, final_state()])
     assert task._STATE["apple_bruised"] is True
     assert task.score(final_state()) == 0.0
     assert task.success(final_state()) is False
 
 
-def test_rotated_sphere_box_does_not_falsely_bruise_the_apple():
-    # Recorded first state of smoke v2: cached rotated cube bottom is below the
-    # table, but the true 33 mm sphere bottom is 9.121 mm ABOVE the table.
-    a = S((0.173294, 0.077312, 0.789621), qx(40),
-          (0.12, 0.02, 0.736579), (0.23, 0.13, 0.842663))
+def _qaxis(axis, deg):
+    n = math.sqrt(sum(c * c for c in axis))
+    a = math.radians(deg) / 2
+    return tuple(c / n * math.sin(a) for c in axis) + (math.cos(a),)
+
+
+def test_tilted_half_apple_uses_its_true_lowest_point_not_the_box_corner():
+    """Tilted 40 degrees about a diagonal, the box corner dips below the table while the round rim stays above."""
+    q = _qaxis((1, 1, 0), 40)
+    r = L["apple"]["radius"]
+    uz = math.cos(math.radians(40))
+    z = 0.036
+    a = half_apple(0.40, 0.10, z, quat=q)
+    expected = z - HALF_H * uz - r * math.sqrt(1 - uz * uz)
+    assert task._apple_bottom(with_(nominal(), apple=a)) == pytest.approx(expected)
+    assert expected > task.TH["touch"] and a.low[2] - T0 < 0.0
     w = with_(nominal(), apple=a)
-    assert task._apple_bottom(w) == pytest.approx(0.009121)
     assert not task._apple_touches_table(w)
     run([nominal(), w, final_state()])
     assert not task._STATE["apple_bruised"]
-    assert task.success(final_state())
 
 
-def test_rotating_in_bowl_does_not_change_sphere_height_check():
-    a = apple_in_bowl()
-    a.quat_xyzw = qx(45)
-    a.low = (a.low[0], a.low[1], T0 - 0.010)
+@pytest.mark.parametrize("quat", [qz(90), qz(180), qx(180)])
+def test_turned_or_flipped_half_apple_still_counts_in_the_bowl(quat):
+    """Symmetric shape: yaw or lying cut side up must not read as tilted or lifted."""
+    a = half_apple(0.24, 0.26, BOWL_FLOOR + HALF_H, quat=quat)
+    assert task._apple_bottom(with_(final_state(), apple=a)) == pytest.approx(BOWL_FLOOR)
     assert task._apple_in_bowl(with_(final_state(), apple=a))
 
 
+def test_half_apple_stands_far_from_tipping():
+    """Flat face down, it tips only past atan(r / (h/2)); a whole sphere has no such margin."""
+    r, h = L["apple"]["radius"], L["apple"]["height"]
+    assert math.degrees(math.atan(r / (h / 2))) > 60
+
+
+def test_apple_lying_on_its_side_at_start_is_a_bad_layout():
+    """Fail closed if the framework's Cylinder axis were not vertical: the box would be 2r tall, not h."""
+    side = half_apple(*L["apple"]["xy"], task._APPLE_Z - 3 * task.SPAWN_GAP, quat=qx(90))
+    reset()
+    task.success(with_(nominal(), apple=side))
+    assert task._STATE["bad_layout"] is True
+    reset()
+    task.success(nominal())
+    assert task._STATE["bad_layout"] is False
+
+
 def test_apple_low_in_bowl_is_not_a_bruise():
-    low = with_(nominal(), apple=sphere(0.24, 0.26, 0.034, 0.033))
+    low = with_(nominal(), apple=half_apple(0.24, 0.26, HALF_H + 0.001))
     run([nominal(), low])
     assert task._STATE["apple_bruised"] is False
 
@@ -604,7 +649,7 @@ def test_transient_violation_on_last_frame_is_caught_without_history():
 # Anti-cheat and robustness
 # ---------------------------------------------------------------------------
 def test_apple_held_above_bowl_does_not_count():
-    w = with_(nominal(), apple=sphere(0.24, 0.26, 0.15, 0.033), **towels_aside())
+    w = with_(nominal(), apple=half_apple(0.24, 0.26, 0.15), **towels_aside())
     run([nominal(), w])
     assert task.score(w) == 0.0
 
@@ -612,7 +657,7 @@ def test_apple_held_above_bowl_does_not_count():
 @pytest.mark.parametrize("bottom,ok", [(-T0, False), (-0.010, False), (-0.0031, False),
                                        (-0.0029, True), (0.001, True)])
 def test_apple_below_table_does_not_count_as_in_bowl(bottom, ok):
-    a = sphere(*L["bowl"]["xy"], bottom + L["apple"]["radius"], L["apple"]["radius"])
+    a = half_apple(*L["bowl"]["xy"], bottom + HALF_H)
     w = with_(final_state(), apple=a)
     assert run([nominal(), w]) is ok
     assert task.score(w) == (0.75 if ok else 0.0)
@@ -690,7 +735,7 @@ def test_mug_yaw_is_not_tilt(yaw):
 # ---------------------------------------------------------------------------
 def test_teleport_back_to_layout_resets_latches():
     tipped = with_(nominal(), mug=mug(0.32, -0.16, quat=qx(12)))
-    far = with_(tipped, apple=sphere(0.60, 0.30, 0.04, 0.033))
+    far = with_(tipped, apple=half_apple(0.60, 0.30, HALF_H))
     run([nominal(), far])
     assert task._STATE["zero"] == "coffee spilt"
     task.success(nominal())
