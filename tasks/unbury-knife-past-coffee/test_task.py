@@ -826,6 +826,15 @@ def test_demo_knife_ends_on_plate_pointing_away_and_never_nears_the_mug():
     assert closest > task.TH["keepout_radius"] + 0.01
 
 
+def test_demo_sets_the_apple_down_instead_of_dropping_it():
+    """The release puts the apple's flat face a few mm above the bowl floor ("Don't drop anything")."""
+    left = task.demo()["left"]
+    release = [w for w in left if w.label == "release"][0]
+    held_bottom = release.pos[2] - 3 * task.SPAWN_GAP - L["apple"]["height"] / 2 - task.TABLE_Z
+    assert 0.0 < held_bottom - task.BOWL_FLOOR <= 0.005
+    assert 0.0015 < task.BOWL_FLOOR < 0.0035  # bowl_info.json: 2.37 mm
+
+
 def test_demo_left_arm_places_apple_and_clears_towels():
     left = task.demo()["left"]
     picks = [w for w in left if w.label == "close"]

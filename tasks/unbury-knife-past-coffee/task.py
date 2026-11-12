@@ -59,6 +59,8 @@ KNIFE_TIP_LOCAL = (0.0, 0.085, 0.0)  # blade tip, from the bounding-box centre, 
 KNIFE_BUTT_LOCAL = (0.0, -0.085, 0.0)  # end of the handle
 KNIFE_HANDLE_END_Y = -0.017  # body-frame y where the red handle ends (the metal neck and blade follow)
 PLATE_HEIGHT = 0.020  # m, table to the plate's top surface: CONFIRM against the plate model
+# Bowl floor at its centre, above the table (assets/bowl/bowl_info.json, measured from the scan).
+BOWL_FLOOR = json.loads((HERE / "assets/bowl/bowl_info.json").read_text())["centre_surface_height_from_bottom"]
 
 # Official mug geometry measured offline at 120 mm total width, including its handle. The coffee itself is not
 # modelled: a rigid "coffee" solid would never slosh, and fitting it inside a dynamic mug's convex collider is the
@@ -557,6 +559,7 @@ GRASP_FROM_CENTRE = 0.050  # m from the knife's centre toward the handle end: mi
 TRAVEL_Z = 0.10  # carry height above the table
 KNIFE_ROUTE_X = 0.13  # x of the grip while the knife passes the mug
 PAD_GRIP_MIN_Z = 0.015  # m above the table: same as the knife grip
+APPLE_RELEASE_GAP = 0.003  # m between the apple's flat face and the bowl floor when the gripper opens
 TURN_DY = -0.04  # y of the turn relative to the plate centre: far enough from the mug for the tip's sweep
 
 
@@ -569,7 +572,13 @@ def _left_plan():
     px, py = LAYOUT["towel_pad"]["xy"]
     pad_edge = py - LAYOUT["towel_pad"]["size"][1] / 2  # the wad's -y edge, clear of the bowl side
     plan = []
-    plan += pick_place_waypoints((ax, ay, t + _APPLE_Z), (bx, by, t + 0.075), travel_z=t + 0.14)
+    # Set the apple down instead of dropping it. Smoke run (20eae38): released from 75 mm it fell ~58 mm and was
+    # still rocking 1.4 s later (1-1.4 deg, 1.5 rad/s), so it was not at rest. The grip holds the apple's centre
+    # where it was gripped: the spawn centre, 3 spawn gaps above where it settles. Lower until its flat face is
+    # APPLE_RELEASE_GAP above the bowl floor, then open.
+    grip_above_centre = 3 * SPAWN_GAP
+    apple_release_z = BOWL_FLOOR + APPLE_RELEASE_GAP + LAYOUT["apple"]["height"] / 2 + grip_above_centre
+    plan += pick_place_waypoints((ax, ay, t + _APPLE_Z), (bx, by, t + apple_release_z), travel_z=t + 0.14)
     # Fingers along x. The left arm mirrors the right, so it turns the grip to -pi/2: turning to +pi/2
     # from the bowl leaves its wrist 30 degrees short (IK check). A parallel grip is the same either way.
     plan += pick_place_waypoints((near_edge, sy, t + _SHEET_Z), (0.35, 0.18, t + 0.02),

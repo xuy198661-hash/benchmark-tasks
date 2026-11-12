@@ -15,14 +15,23 @@ What it tests:
 **Status:** scoring, scripted `demo()` and CPU tests are written. The knife, bowl and plate models are included
 in `assets/`. Scoring rejects apples and towels below the table, allowing the existing 3 mm contact tolerance.
 The layout with the wad beside the knife (every support under the apple lies on the table, and the sheet does
-not touch the knife), the full-weight empty mug and the half apple's exact lowest-point check are covered by 93 CPU tests;
+not touch the knife), the full-weight empty mug and the half apple's exact lowest-point check are covered by 94 CPU tests;
 their simulator contacts and full demo remain unverified. `scores` and `media` remain TODO until validated GPU runs and uploads.
 
 **GPU static calibration, commit 887679a (100 steps):** mug, wad and knife stayed put (mug tilt 0.22°, axis shift
 < 0.3 mm, resting speed at most 1.3 mm/s). The apple, then modelled as a 66 mm sphere, rolled off: the sheet on the wad
 settled 0.03-0.05° off level, which accelerated the sphere at about 0.0045 m/s² until it passed the wad's edge
 and tipped the sheet. A sphere has no resting position on a movable support, so the apple is now half an apple
-lying cut side down. This layout has not yet been run on GPU.
+lying cut side down.
+
+**GPU static calibration, commit 20eae38 (100 steps, run twice with identical results):** the half apple did not
+move (< 0.01 mm), its box is 30.1 mm tall (the cylinder stands on its axis), the sheet sat 0.016° off level, and
+the mug, wad and knife stayed put.
+
+**GPU smoke, commit 20eae38 (200 steps):** the left arm lifted the half apple and put it 0.3 mm from the bowl's
+centre, `apple_bruised=false`. Releasing it from 75 mm dropped it ~58 mm; 1.4 s later it was still rocking
+(1-1.4°, 1.5 rad/s) and so not at rest. The demo now lowers it to 3 mm above the bowl floor before opening. Gripping
+nudged the apple 12 mm and the sheet and wad about 3 mm; nothing was knocked over.
 
 ## Files
 
@@ -80,7 +89,7 @@ git rev-parse HEAD
 python tasks/unbury-knife-past-coffee/run_gpu.py check
 ```
 
-The preflight should report 93 passing tests without skips. For later revisions, in that checkout run
+The preflight should report 94 passing tests without skips. For later revisions, in that checkout run
 `git pull --ff-only origin unbury-knife-past-coffee`, compare `git rev-parse HEAD` with the pushed local
 commit, and rerun preflight. If local edits prevent updating, inspect them before replacing any files.
 
@@ -182,7 +191,7 @@ so the release trajectory remains pending contact calibration. Do not fill `scor
 
 ## Scripted demo
 
-The left arm puts the apple in the bowl and moves the sheet and the wad aside. The right arm then grips the knife
+The left arm sets the half apple down in the bowl (released 3 mm above its floor, not dropped) and moves the sheet and the wad aside. The right arm then grips the knife
 from above across the middle of its handle, lifts it, and pulls in toward the robot. It passes the mug with the
 knife still lying along y, so the tip trails behind. Clear of the mug, it turns the blade to point away and lays the
 knife on the plate.
