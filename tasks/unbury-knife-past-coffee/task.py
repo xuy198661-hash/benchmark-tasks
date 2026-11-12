@@ -58,7 +58,12 @@ KNIFE_HEIGHT = 0.0119  # m, table to the top of the knife lying on the table
 KNIFE_TIP_LOCAL = (0.0, 0.085, 0.0)  # blade tip, from the bounding-box centre, body frame
 KNIFE_BUTT_LOCAL = (0.0, -0.085, 0.0)  # end of the handle
 KNIFE_HANDLE_END_Y = -0.017  # body-frame y where the red handle ends (the metal neck and blade follow)
-PLATE_HEIGHT = 0.020  # m, table to the plate's top surface: CONFIRM against the plate model
+# Table to the plate's centre surface: scan measurement (assets/plate/plate_info.json, 2.75 mm above the plate's
+# bottom) plus Arena's 1 mm rest gap (GPU: plate_low = table + 1.0 mm). The old 20 mm was the rim height.
+PLATE_HEIGHT = json.loads((HERE / "assets/plate/plate_info.json").read_text())["centre_surface_height_from_bottom"] + 0.001
+# GPU demo (ad5b384): the knife settled on the plate with its lowest point 6.5 mm above the table (lying 2.2 deg off
+# flat on the curved plate). The grip holds it with the TCP 15 mm above its lowest point.
+KNIFE_REST_LOW_ON_PLATE = 0.0065
 # Bowl floor at its centre, above the table (assets/bowl/bowl_info.json, measured from the scan).
 BOWL_FLOOR = json.loads((HERE / "assets/bowl/bowl_info.json").read_text())["centre_surface_height_from_bottom"]
 
@@ -130,8 +135,10 @@ OBJECTS = [
 
 # Thresholds: development estimates, to be calibrated on GPU (see README).
 TH = {
-    "rest_speed": 0.01,  # m/s
-    "rest_spin": 0.10,  # rad/s
+    "rest_speed": 0.01,  # m/s, only before the pose window below has filled
+    "rest_spin": 0.10,  # rad/s, ditto
+    "rest_frames": 10,  # pose window: the last 10 success() calls = 0.5 s at 20 Hz
+    "rest_span": 0.002,  # m: at rest if the centre stayed within this of every pose in the window
     "mug_tilt_deg": 8.0,  # spill proxy: liquid 8 mm below the rim reaches it at ~12 deg (atan 8/38)
     "mug_shift": 0.015,  # cup axis, measured from where it stood at the start
     "keepout_radius": MUG_BODY_RADIUS + 0.030,  # around the cup axis, no height limit
@@ -141,8 +148,6 @@ TH = {
     "apple_axis": 0.040,
     "apple_z_max": 0.060,  # apple centre height when sitting in the bowl (not perched on the rim)
     "apple_upright_tol": 0.005,  # start-of-episode check of the apple's box height
-    "towel_high_max": 0.030,  # a cleared towel lies low on the table
-    "towel_moved": 0.10,  # a cleared towel has moved this far from where it started
     "knife_flat_deg": 10.0,
     "knife_dir_deg": 25.0,  # tip within this of +x (pointing away from the robot)
     "knife_on_plate_z": 0.020,  # knife's lowest point at most this far above the plate top
@@ -209,8 +214,27 @@ def _rects_overlap(a_low, a_high, b_low, b_high):
             and a_low[1] < b_high[1] and b_low[1] < a_high[1])
 
 
-def _rest(o):
-    return o.resting(max_speed=TH["rest_speed"], max_spin=TH["rest_spin"])
+def _rest(objects, name):
+    """At rest = the centre has stayed put over the last 0.5 s.
+
+    The velocity readings cannot be trusted for this (GPU demo, ad5b384): a knife lying still on the plate
+    for 3 s kept reporting 0.240 rad/s because PhysX had put it to sleep and the reading froze, while the
+    apple in the bowl reported 0.01-0.03 m/s of contact jitter yet moved 0.6 mm in 3 s. So once the window
+    holds TH["rest_frames"] poses of this episode, compare positions; before that, fall back to the velocity
+    check (the trial cannot succeed in its first 0.5 s anyway).
+    """
+    window = _STATE.get("recent", [])
+    o = objects[name]
+    if len(window) < TH["rest_frames"]:
+        return o.resting(max_speed=TH["rest_speed"], max_spin=TH["rest_spin"])
+    p = tuple(float(c) for c in o.pos)
+    return all(math.dist(p, f[name]) <= TH["rest_span"] for f in window if name in f)
+
+
+def _rest_span(objects, name):
+    """Diagnostics: farthest the centre is from any pose in the window, in metres."""
+    p = tuple(float(c) for c in objects[name].pos)
+    return max((math.dist(p, f[name]) for f in _STATE.get("recent", []) if name in f), default=0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -295,24 +319,6 @@ def _apple_in_bowl(o):
             and _z(a.pos) < TH["apple_z_max"])
 
 
-def _towels_cleared(o):
-    k = o["knife"]
-    for name in ("towel_sheet", "towel_pad"):
-        t = o[name]
-        if _z(t.low) < -TH["touch"] or _z(t.high) > TH["towel_high_max"]:
-            return False
-        if _hdist(t.pos, LAYOUT[name]["xy"]) < TH["towel_moved"]:
-            return False
-        if _rects_overlap(t.low, t.high, k.low, k.high):
-            return False
-        if _rect_hits_disc(t.low, t.high, LAYOUT["plate"]["xy"], LAYOUT["plate"]["radius"]):
-            return False
-        for c in ("bowl", "mug"):
-            if _hdist(t.pos, LAYOUT[c]["xy"]) < 0.06:
-                return False
-    return True
-
-
 def _knife_on_plate(o):
     k = o["knife"]
     return (_hdist(k.pos, LAYOUT["plate"]["xy"]) < LAYOUT["plate"]["radius"]
@@ -332,8 +338,11 @@ def _knife_set(o):
     return flat and pointing_away
 
 
+REST_NAMES = ("apple", "knife", "mug")  # the towels are not scored, so they need not have settled
+
+
 def _all_rest(o):
-    return all(_rest(o[n]) for n in ("apple", "knife", "mug", "towel_sheet", "towel_pad"))
+    return all(_rest(o, n) for n in REST_NAMES)
 
 
 def _expected_xy(name):
@@ -372,6 +381,7 @@ def _fresh_state():
         "mug_speed_max": 0.0,  # diagnostic only: calibrates a possible future "mug was hit" rule
         "knife_mug_min": math.inf,  # closest approach of the lifted knife, for calibration
         "start": {},
+        "recent": [],  # positions from the last TH["rest_frames"] success() calls, for _rest
     }
 
 
@@ -402,6 +412,7 @@ def _observe(o):
         _STATE["start"] = {"mug_axis": _mug_axis(o)}
     _STATE["steps"] += 1
     _STATE["prev"] = _positions(o)
+    _STATE["recent"] = (_STATE["recent"] + [_STATE["prev"]])[-TH["rest_frames"]:]
 
     m = o["mug"]
     _STATE["mug_tilt_max"] = max(_STATE["mug_tilt_max"], _tilt_deg(m.quat_xyzw))
@@ -447,14 +458,15 @@ def _cap_reason(o):
 def _tier(o):
     if _zero_reason(o):
         return 0.0
-    apple = _apple_in_bowl(o) and _rest(o["apple"]) and not _STATE.get("apple_bruised")
+    apple = _apple_in_bowl(o) and _rest(o, "apple") and not _STATE.get("apple_bruised")
     if not apple:
         return 0.0
-    if not _towels_cleared(o):
-        return 0.25
     if not _knife_on_plate(o):
-        return 0.5
-    t = 1.0 if (_knife_set(o) and _all_rest(o)) else 0.75
+        return 0.25
+    if not _knife_set(o):
+        t = 0.5
+    else:
+        t = 1.0 if _all_rest(o) else 0.75
     if _cap_reason(o):
         t = min(t, 0.5)
     return t
@@ -491,11 +503,12 @@ def _debug_snapshot(objects, ready):
         "layout_xy_errors": {name: round(_hdist(objects[name].pos, _expected_xy(name)), 6) for name in LAYOUT},
         "checks": {
             "apple_in_bowl": _apple_in_bowl(objects),
-            "towels_cleared": _towels_cleared(objects),
             "knife_on_plate": _knife_on_plate(objects),
             "knife_set": _knife_set(objects),
             "all_rest": _all_rest(objects),
         },
+        "rest_window": len(_STATE.get("recent", [])),
+        "rest_span_mm": {n: round(_rest_span(objects, n) * 1000, 3) for n in REST_NAMES},
         "mug_axis": values(_mug_axis(objects)),
         "mug_tilt_deg": round(_tilt_deg(objects["mug"].quat_xyzw), 4),
         "mug_speed_max": round(_STATE["mug_speed_max"], 6),
@@ -544,22 +557,22 @@ def score(objects):
 def distance(objects):
     """Read-only progress measure in metres (lower is better)."""
     d = _hdist(objects["apple"].pos, LAYOUT["bowl"]["xy"])
-    if not _towels_cleared(objects):
-        d += 0.25
     d += _hdist(objects["knife"].pos, LAYOUT["plate"]["xy"])
     return float(d)
 
 
 # ---------------------------------------------------------------------------
-# Scripted demo: left arm clears the apple and both towels, then the right arm
+# Scripted demo: the left arm sets the half apple down in the bowl, then the right arm
 # lifts the knife by the middle of its handle, carries it past the mug on the
-# robot's side, turns the blade to point away and lays it on the plate.
+# robot's side, turns the blade to point away and lays it on the plate. The towels
+# are not scored; lifting the knife carries the sheet off the wad (GPU demo, ad5b384).
 # ---------------------------------------------------------------------------
 GRASP_FROM_CENTRE = 0.050  # m from the knife's centre toward the handle end: mid-handle
 TRAVEL_Z = 0.10  # carry height above the table
 KNIFE_ROUTE_X = 0.13  # x of the grip while the knife passes the mug
-PAD_GRIP_MIN_Z = 0.015  # m above the table: same as the knife grip
 APPLE_RELEASE_GAP = 0.003  # m between the apple's flat face and the bowl floor when the gripper opens
+KNIFE_GRIP_Z = 0.015  # m: TCP above the knife's lowest point while gripping (the grip height on the table)
+KNIFE_RELEASE_GAP = 0.005  # m: knife's lowest point above its resting height on the plate when released
 TURN_DY = -0.04  # y of the turn relative to the plate centre: far enough from the mug for the tip's sweep
 
 
@@ -567,26 +580,12 @@ def _left_plan():
     t = TABLE_Z
     ax, ay = LAYOUT["apple"]["xy"]
     bx, by = LAYOUT["bowl"]["xy"]
-    sx, sy = LAYOUT["towel_sheet"]["xy"]
-    near_edge = sx - LAYOUT["towel_sheet"]["size"][0] / 2
-    px, py = LAYOUT["towel_pad"]["xy"]
-    pad_edge = py - LAYOUT["towel_pad"]["size"][1] / 2  # the wad's -y edge, clear of the bowl side
-    plan = []
-    # Set the apple down instead of dropping it. Smoke run (20eae38): released from 75 mm it fell ~58 mm and was
-    # still rocking 1.4 s later (1-1.4 deg, 1.5 rad/s), so it was not at rest. The grip holds the apple's centre
+    # Set the apple down instead of dropping it ("Don't drop anything"). The grip holds the apple's centre
     # where it was gripped: the spawn centre, 3 spawn gaps above where it settles. Lower until its flat face is
     # APPLE_RELEASE_GAP above the bowl floor, then open.
     grip_above_centre = 3 * SPAWN_GAP
     apple_release_z = BOWL_FLOOR + APPLE_RELEASE_GAP + LAYOUT["apple"]["height"] / 2 + grip_above_centre
-    plan += pick_place_waypoints((ax, ay, t + _APPLE_Z), (bx, by, t + apple_release_z), travel_z=t + 0.14)
-    # Fingers along x. The left arm mirrors the right, so it turns the grip to -pi/2: turning to +pi/2
-    # from the bowl leaves its wrist 30 degrees short (IK check). A parallel grip is the same either way.
-    plan += pick_place_waypoints((near_edge, sy, t + _SHEET_Z), (0.35, 0.18, t + 0.02),
-                                 travel_z=t + TRAVEL_Z, yaw=-math.pi / 2)
-    # Grip height as low as the knife grip (15 mm), not the wad's 9 mm centre, to keep the fingers off the table.
-    plan += pick_place_waypoints((px, pad_edge, t + max(_PAD_Z, PAD_GRIP_MIN_Z)), (0.10, 0.175, t + 0.02),
-                                 travel_z=t + TRAVEL_Z, yaw=0.0)
-    return plan
+    return pick_place_waypoints((ax, ay, t + _APPLE_Z), (bx, by, t + apple_release_z), travel_z=t + 0.14)
 
 
 def _right_plan(wait_s):
@@ -596,13 +595,18 @@ def _right_plan(wait_s):
     lx, ly = LAYOUT["plate"]["xy"]
     place = (lx - GRASP_FROM_CENTRE, ly)  # knife centre over the plate once the tip points to +x
     up = t + TRAVEL_Z
+    knife_release_z = KNIFE_REST_LOW_ON_PLATE + KNIFE_RELEASE_GAP + KNIFE_GRIP_Z
     half = math.pi / 2
     return [
         Waypoint(2.0, (0.20, -0.30, t + 0.15), FINGER_OPEN, "out of the way", 0.0),
-        Waypoint(wait_s, (0.20, -0.30, t + 0.15), FINGER_OPEN, "wait for the towels", 0.0),
-        Waypoint(1.5, (gx, gy, up), FINGER_OPEN, "over the handle", half),
-        Waypoint(1.5, (gx, gy, t + 0.015), FINGER_OPEN, "descend", half),
-        Waypoint(0.8, (gx, gy, t + 0.015), FINGER_CLOSED, "close on the handle", half),
+        Waypoint(wait_s, (0.20, -0.30, t + 0.15), FINGER_OPEN, "wait for the apple", 0.0),
+        # Reach the handle through the same corridor the knife leaves by (x = KNIFE_ROUTE_X), not straight
+        # across: the straight move passed 86 mm from the cup axis below the rim and knocked the mug over
+        # (GPU demo, ad5b384). test_task.py checks the gripper's whole path against the mug.
+        Waypoint(1.5, (KNIFE_ROUTE_X, gy, up), FINGER_OPEN, "round the mug", half),
+        Waypoint(1.2, (gx, gy, up), FINGER_OPEN, "over the handle", half),
+        Waypoint(1.5, (gx, gy, t + KNIFE_GRIP_Z), FINGER_OPEN, "descend", half),
+        Waypoint(0.8, (gx, gy, t + KNIFE_GRIP_Z), FINGER_CLOSED, "close on the handle", half),
         Waypoint(1.2, (gx, gy, up), FINGER_CLOSED, "lift", half),
         Waypoint(1.2, (KNIFE_ROUTE_X, gy, up), FINGER_CLOSED, "pull in", half),
         # Pass the mug with the knife still along y (tip trailing), and turn it only once the
@@ -610,8 +614,11 @@ def _right_plan(wait_s):
         Waypoint(1.8, (KNIFE_ROUTE_X, ly + TURN_DY, up), FINGER_CLOSED, "pass the mug", half),
         Waypoint(1.5, (KNIFE_ROUTE_X, ly + TURN_DY, up), FINGER_CLOSED, "turn the blade away", 0.0),
         Waypoint(1.2, (place[0], place[1], up), FINGER_CLOSED, "over the plate", 0.0),
-        Waypoint(1.2, (place[0], place[1], t + PLATE_HEIGHT + 0.025), FINGER_CLOSED, "lower", 0.0),
-        Waypoint(0.6, (place[0], place[1], t + PLATE_HEIGHT + 0.025), FINGER_OPEN, "release", 0.0),
+        # Set the knife down: released from 45 mm it fell ~30 mm onto the plate at about 0.77 m/s, just under the
+        # 0.8 m/s "knife dropped" cap (GPU demo, ad5b384). Now its lowest point is KNIFE_RELEASE_GAP above where
+        # it came to rest.
+        Waypoint(1.2, (place[0], place[1], t + knife_release_z), FINGER_CLOSED, "lower", 0.0),
+        Waypoint(0.6, (place[0], place[1], t + knife_release_z), FINGER_OPEN, "release", 0.0),
         Waypoint(1.0, (place[0], place[1], up), FINGER_OPEN, "retreat", 0.0),
     ]
 

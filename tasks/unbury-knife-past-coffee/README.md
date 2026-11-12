@@ -1,21 +1,24 @@
 # Uncover the knife and set it on the plate without going near the full mug
 
 A small knife lies flat on the table beside a folded wad of paper towels. A large paper-towel sheet rests on the wad
-with half an apple on top, cut side down, and covers the knife except for its red handle. The robot puts the apple half in the bowl, clears
-both towels away, and lays the knife on a plate with the handle toward the robot and the blade pointing away. A mug
+with half an apple on top, cut side down, and covers the knife except for its red handle. The robot puts the apple half in the bowl and lays
+the knife on a plate with the handle toward the robot and the blade pointing away; the towels are not scored. A mug
 that the instruction says is full of hot coffee stands next to the straight path from the knife to the plate.
 
 What it tests:
 
 - **Covered blade.** Only the handle shows at the start; the blade runs on under the towels, and the instruction only says the knife is partly under them.
-- **Order.** Pulling the sheet before lifting the half apple drops it onto the table, and that cannot be undone.
+- **Support dependency.** The apple half rides on the sheet that hides the knife. Lifting the knife straight up
+  lifts the sheet with it (seen in the GPU demo, after the apple had gone); with the apple still on the sheet this
+  should throw it onto the table, which cannot be undone. Sliding the knife out along its length does not touch the
+  sheet. The "apple still on the sheet" case has not been run on GPU.
 - **Keep-out around an open drink.** The obvious straight carry clips the mug's keep-out zone, so the knife has to go round it.
 - **Final pose.** The knife must end flat on the plate, blade pointing away from the robot.
 
 **Status:** scoring, scripted `demo()` and CPU tests are written. The knife, bowl and plate models are included
-in `assets/`. Scoring rejects apples and towels below the table, allowing the existing 3 mm contact tolerance.
+in `assets/`. Scoring rejects an apple below the table, allowing a 3 mm contact tolerance.
 The layout with the wad beside the knife (every support under the apple lies on the table, and the sheet does
-not touch the knife), the full-weight empty mug and the half apple's exact lowest-point check are covered by 94 CPU tests;
+not touch the knife), the full-weight empty mug and the half apple's exact lowest-point check, the position-based rest test and the mug-clear gripper path are covered by 92 CPU tests;
 their simulator contacts and full demo remain unverified. `scores` and `media` remain TODO until validated GPU runs and uploads.
 
 **GPU static calibration, commit 887679a (100 steps):** mug, wad and knife stayed put (mug tilt 0.22°, axis shift
@@ -32,6 +35,19 @@ the mug, wad and knife stayed put.
 centre, `apple_bruised=false`. Releasing it from 75 mm dropped it ~58 mm; 1.4 s later it was still rocking
 (1-1.4°, 1.5 rad/s) and so not at rest. The demo now lowers it to 3 mm above the bowl floor before opening. Gripping
 nudged the apple 12 mm and the sheet and wad about 3 mm; nothing was knocked over.
+
+**GPU demo, commit ad5b384 (921 steps, score 0):** the apple went into the bowl (1 mm off centre) and the knife
+ended on the plate, set (`knife_set=true`). Four problems, all addressed in the next commit:
+(1) the parallel gripper could not lift the 1.5 mm sheet or the 110 x 110 mm wad (no horizontal side narrower than
+its opening), so the towels are no longer scored; (2) the right arm went straight from its waiting pose to the
+handle, passed 86 mm from the cup axis below the rim and pushed the mug 15 mm (coffee spilt), so it now goes round
+through x = 130 mm and a test checks the gripper's path; (3) the knife lay still on the plate for 3 s yet reported
+0.240 rad/s (a sleeping body's frozen reading) and (4) the apple in the bowl reported 0.01-0.03 m/s of contact jitter
+while moving 0.6 mm in 3 s, so "at rest" is now judged from positions over the last 0.5 s.
+Also seen in that run: the knife was released 45 mm above the table and hit the plate at about 0.77 m/s, just under
+the 0.8 m/s "knife dropped" cap, so it is now set down 5 mm above where it came to rest; the lifted knife's closest
+approach to the (already displaced) mug was 80.9 mm against the 77.45 mm keep-out, to be re-measured with the mug
+in place; the sheet lifted with the knife landed 0.27 m from the mug.
 
 ## Files
 
@@ -89,7 +105,7 @@ git rev-parse HEAD
 python tasks/unbury-knife-past-coffee/run_gpu.py check
 ```
 
-The preflight should report 94 passing tests without skips. For later revisions, in that checkout run
+The preflight should report 92 passing tests without skips. For later revisions, in that checkout run
 `git pull --ff-only origin unbury-knife-past-coffee`, compare `git rev-parse HEAD` with the pushed local
 commit, and rerun preflight. If local edits prevent updating, inspect them before replacing any files.
 
@@ -121,7 +137,7 @@ remains enabled.
 
 After static calibration passes, `run_gpu.py smoke` covers the initial apple move (200 steps / 10 simulated
 seconds). It does not cover the full task. After inspecting and calibrating grasping, play the
-full demo (about 43.3 seconds / 866 steps, with a 1200-step maximum and the policy's final hold):
+full demo (about 25.3 seconds / 506 steps, with a 1200-step maximum and the policy's final hold):
 
 ```sh
 python tasks/unbury-knife-past-coffee/run_gpu.py demo
@@ -146,10 +162,12 @@ is reached only when `success()` holds for `SUCCESS_HOLD_S = 1.0` s.
 
 | Score | End state |
 |---|---|
-| 1.00 | Apple in the bowl, both towels cleared, knife set on the plate; everything at rest for 1 s |
-| 0.75 | Apple and towels done, knife on the plate but not set (wrong direction, not flat) or not at rest |
-| 0.50 | Apple in the bowl and both towels cleared |
+| 1.00 | Apple in the bowl, knife set on the plate; apple, knife and mug at rest; held for 1 s |
+| 0.75 | Apple in the bowl, knife set, but not yet at rest |
+| 0.50 | Apple in the bowl, knife on the plate but not set (wrong direction or not flat) |
 | 0.25 | Apple in the bowl |
+
+The paper towels are not scored: wherever they end up, the tiers are the same.
 | 0 | Anything less |
 
 **History rules.** Each of these is latched when it happens, and the final frame is checked again:
@@ -174,10 +192,9 @@ one; holding the knife by its handle (body-frame y below -17 mm) is the next add
 | Knife lifted | Lowest point 15 mm above the table | |
 | Knife fall speed | 0.8 m/s | |
 | Apple in bowl | Within 40 mm of the bowl centre, centre < 60 mm high, lowest point ≥ -3 mm relative to the table | Lowest point of the 66 x 30 mm cylinder from its pose: centre - (h/2)·|u_z| - r·√(1-u_z²), u_z the axis's vertical component; unchanged by yaw or flipping |
-| Towel cleared | Moved ≥ 100 mm, lowest point ≥ -3 mm and top ≤ 30 mm relative to the table, off the knife and plate, not in the bowl or on the mug | 3 mm contact tolerance |
-| Knife on plate | Centre over the plate, lowest point within 20 mm above the plate top | |
+| Knife on plate | Centre over the plate, lowest point more than 3 mm above the table and less than 20 mm above the plate's centre surface (3.75 mm above the table) | Centre surface from the plate scan; the knife settled with its lowest point at 6.5 mm (GPU) |
 | Knife set | Both ends over the plate, within 10° of flat, handle-to-tip line within 25° of +x | |
-| Rest | 0.01 m/s, 0.1 rad/s | |
+| Rest | Centre within 2 mm of each of its positions over the last 10 calls (0.5 s); 0.01 m/s, 0.1 rad/s only before the window fills | Velocity readings freeze on sleeping bodies (knife: 0.240 rad/s while still) and jitter on mesh contacts (apple: 0.01-0.03 m/s while moving 0.6 mm in 3 s) |
 
 ### Calibration
 
@@ -185,16 +202,17 @@ The knife's size, orientation and handle are read off `assets/knife/knife.usda`.
 come from the official source mesh and are recorded in `assets/mug/mug_info.json` (see [the mug notes](assets/mug/README.md)). The revised
 keep-out radius is 77.4545 mm; metadata rounds it to 77.45 mm. CPU replay checks the knife route against this
 larger radius with more than 10 mm margin. Use the GPU `task_calib` / `task_state` lines and camera frames to
-verify the settled cup axis, the towel stack and the actual knife/plate contact height. `PLATE_HEIGHT`
-still uses the 20 mm overall-height estimate; the measured centre surface is only 2.75 mm above its mesh bottom,
-so the release trajectory remains pending contact calibration. Do not fill `scores` or `media` from CPU tests.
+verify the settled cup axis and the knife/plate contact. `PLATE_HEIGHT` is the plate's scanned centre surface
+(2.75 mm above its bottom) plus Arena's 1 mm rest gap; it was 20 mm, the rim height, before the GPU demo showed the
+knife settling with its lowest point 6.5 mm above the table. Do not fill `scores` or `media` from CPU tests.
 
 ## Scripted demo
 
-The left arm sets the half apple down in the bowl (released 3 mm above its floor, not dropped) and moves the sheet and the wad aside. The right arm then grips the knife
-from above across the middle of its handle, lifts it, and pulls in toward the robot. It passes the mug with the
-knife still lying along y, so the tip trails behind. Clear of the mug, it turns the blade to point away and lays the
-knife on the plate.
+The left arm sets the half apple down in the bowl (released 3 mm above its floor, not dropped). The right arm then
+goes round the mug through x = 130 mm, grips the knife from above across the middle of its handle, lifts it (the sheet
+comes up with it and falls aside), and pulls in toward the robot. It passes the mug with the
+knife still lying along y, so the tip trails behind. Clear of the mug, it turns the blade to point away and sets the
+knife down on the plate (released 5 mm above where it comes to rest, not dropped).
 
 ## Fidelity
 

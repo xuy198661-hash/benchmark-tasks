@@ -5,6 +5,7 @@ waypoint helpers (copied from the framework's source); the kinematic tests are t
 
 import dataclasses
 import importlib.util
+import json
 import math
 import pathlib
 import sys
@@ -164,21 +165,12 @@ def apple_in_bowl():
     return half_apple(0.24, 0.26, BOWL_FLOOR + HALF_H)
 
 
-def towels_aside():
-    """Where the scripted demo leaves the towels (see test_demo_left_arm_places_apple_and_clears_towels)."""
-    sheet, pad = L["towel_sheet"]["size"], L["towel_pad"]["size"]
-    return {
-        "towel_sheet": box(0.45, 0.18, sheet[2] / 2, *sheet),
-        "towel_pad": box(0.10, 0.23, pad[2] / 2, *pad),
-    }
-
-
 def knife_on_plate(yaw_deg=-90.0, x=0.26, y=-0.30):
     return knife(x, y, task.PLATE_HEIGHT + task.KNIFE_HEIGHT / 2, quat=qz(yaw_deg))
 
 
 def final_state():
-    return with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate(), **towels_aside())
+    return with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate())
 
 
 def reset():
@@ -464,17 +456,29 @@ def test_apple_only():
     assert task.score(w) == 0.25
 
 
-def test_apple_and_towels():
-    w = with_(nominal(), apple=apple_in_bowl(), **towels_aside())
-    run([nominal(), w])
+@pytest.mark.parametrize("yaw", [90, 180, -45])
+def test_knife_on_plate_pointing_wrong_way_is_05(yaw):
+    w = with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))
+    assert run([nominal(), w]) is False
     assert task.score(w) == 0.5
 
 
-@pytest.mark.parametrize("yaw", [90, 180, -45])
-def test_knife_on_plate_pointing_wrong_way_is_075(yaw):
-    w = with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))
+def test_knife_set_but_still_moving_is_075():
+    moving = knife_on_plate()
+    moving.lin_vel = (0.05, 0.0, 0.0)
+    w = with_(final_state(), knife=moving)
     assert run([nominal(), w]) is False
     assert task.score(w) == 0.75
+
+
+@pytest.mark.parametrize("towels", ["where they started", "on the plate", "on the floor"])
+def test_towels_are_not_scored(towels):
+    """The instruction asks for the apple and the knife only; the towels may end anywhere."""
+    sheet, pad = L["towel_sheet"]["size"], L["towel_pad"]["size"]
+    moved = {"where they started": {},
+             "on the plate": {"towel_sheet": box(0.26, -0.30, task.PLATE_HEIGHT + 0.001, *sheet)},
+             "on the floor": {"towel_pad": box(0.60, 0.40, -T0 + pad[2] / 2, *pad)}}[towels]
+    assert run([nominal(), with_(final_state(), **moved)]) is True
 
 
 def test_full_success_and_score_capped_at_075():
@@ -487,10 +491,11 @@ def test_knife_direction_boundary(yaw, ok):
     assert task._knife_set(with_(final_state(), knife=knife_on_plate(yaw_deg=yaw))) is ok
 
 
-def test_tiers_do_not_skip_towels():
-    w = with_(nominal(), apple=apple_in_bowl(), knife=knife_on_plate())
+def test_knife_without_the_apple_scores_zero():
+    """Tiers do not skip the apple: the knife set on the plate alone is worth nothing."""
+    w = with_(nominal(), knife=knife_on_plate())
     run([nominal(), w])
-    assert task.score(w) == 0.25
+    assert task.score(w) == 0.0
 
 
 def test_no_apple_means_zero_even_if_rest_done():
@@ -649,7 +654,7 @@ def test_transient_violation_on_last_frame_is_caught_without_history():
 # Anti-cheat and robustness
 # ---------------------------------------------------------------------------
 def test_apple_held_above_bowl_does_not_count():
-    w = with_(nominal(), apple=half_apple(0.24, 0.26, 0.15), **towels_aside())
+    w = with_(nominal(), apple=half_apple(0.24, 0.26, 0.15))
     run([nominal(), w])
     assert task.score(w) == 0.0
 
@@ -663,41 +668,10 @@ def test_apple_below_table_does_not_count_as_in_bowl(bottom, ok):
     assert task.score(w) == (0.75 if ok else 0.0)
 
 
-@pytest.mark.parametrize("name", ["towel_sheet", "towel_pad"])
-@pytest.mark.parametrize("bottom,ok", [(-T0, False), (-0.010, False), (-0.0031, False),
-                                       (-0.0029, True), (0.0, True)])
-def test_towel_below_table_does_not_count_as_cleared(name, bottom, ok):
-    towel = towels_aside()[name]
-    size = L[name]["size"]
-    w = with_(final_state(), **{name: box(*towel.pos[:2], bottom + size[2] / 2, *size)})
-    assert run([nominal(), w]) is ok
-    assert task.score(w) == (0.75 if ok else 0.25)
-
-
-def test_towel_dropped_into_bowl_is_not_cleared():
-    w = with_(nominal(), apple=apple_in_bowl(),
-              towel_sheet=box(0.24, 0.26, 0.02, 0.10, 0.10, 0.0015),
-              towel_pad=towels_aside()["towel_pad"])
-    run([nominal(), w])
-    assert task.score(w) == 0.25
-
-
-def test_towel_on_plate_is_not_cleared():
-    w = with_(nominal(), apple=apple_in_bowl(), towel_pad=towels_aside()["towel_pad"],
-              towel_sheet=box(0.26, -0.30, 0.021, 0.26, 0.24, 0.0015))
-    assert task._towels_cleared(w) is False
-
-
-def test_towel_nudged_aside_but_not_cleared():
-    w = with_(nominal(), apple=apple_in_bowl(), towel_pad=towels_aside()["towel_pad"],
-              towel_sheet=box(0.30, 0.04, 0.001, 0.26, 0.24, 0.0015))
-    assert task._towels_cleared(w) is False
-
-
 def test_knife_held_above_plate_is_not_on_plate():
     w = with_(final_state(), knife=knife(0.26, -0.30, 0.12, quat=qz(-90)))
     run([nominal(), w])
-    assert task.score(w) == 0.5
+    assert task.score(w) == 0.25
 
 
 def test_knife_standing_on_plate_is_not_set():
@@ -762,7 +736,7 @@ def test_debug_print_does_not_change_result(capsys, monkeypatch):
     import json
 
     monkeypatch.setattr(task, "DEBUG", True)
-    frames = [nominal()] * 21 + [final_state()]
+    frames = [nominal()] * 21 + [final_state()] * (task.TH["rest_frames"] + 1)
     assert run(frames) is True
     out = capsys.readouterr().out
     assert "task_progress steps=1 " in out and "task_progress steps=20 " in out
@@ -835,21 +809,95 @@ def test_demo_sets_the_apple_down_instead_of_dropping_it():
     assert 0.0015 < task.BOWL_FLOOR < 0.0035  # bowl_info.json: 2.37 mm
 
 
-def test_demo_left_arm_places_apple_and_clears_towels():
+def test_plate_height_is_the_scanned_centre_surface():
+    info = json.loads((task.HERE / "assets/plate/plate_info.json").read_text())
+    assert task.PLATE_HEIGHT == pytest.approx(info["centre_surface_height_from_bottom"] + 0.001)
+    assert task.TH["touch"] < task.KNIFE_REST_LOW_ON_PLATE < task.PLATE_HEIGHT + task.TH["knife_on_plate_z"]
+
+
+def test_demo_sets_the_knife_down_well_under_the_drop_cap():
+    """Released from 45 mm the knife hit the plate at ~0.77 m/s against a 0.8 m/s cap; now it falls a few mm."""
+    right = task.demo()["right"]
+    release = [w for w in right if w.label == "release"][0]
+    fall = release.pos[2] - task.TABLE_Z - task.KNIFE_GRIP_Z - task.KNIFE_REST_LOW_ON_PLATE
+    assert 0.0 < fall <= 0.008
+    assert math.sqrt(2 * 9.81 * fall) < 0.5 * task.TH["drop_speed"]
+
+
+def test_demo_left_arm_only_moves_the_apple():
     left = task.demo()["left"]
     picks = [w for w in left if w.label == "close"]
     releases = [w for w in left if w.label == "release"]
-    assert len(picks) == len(releases) == 3
+    assert len(picks) == len(releases) == 1
     a = releases[0].pos
     assert math.hypot(a[0] - L["bowl"]["xy"][0], a[1] - L["bowl"]["xy"][1]) < 0.005
-    end = with_(final_state())
-    for (name, size), p, r in zip(
-        [("towel_sheet", L["towel_sheet"]["size"]), ("towel_pad", L["towel_pad"]["size"])], picks[1:], releases[1:]
-    ):
-        cx = r.pos[0] + L[name]["xy"][0] - p.pos[0]
-        cy = r.pos[1] + L[name]["xy"][1] - p.pos[1]
-        end[name] = box(cx, cy, size[2] / 2, *size)
-    assert task._towels_cleared(end)
+
+
+def _path(waypoints, step=0.005):
+    """Straight-line samples between consecutive waypoint positions (from the first waypoint on)."""
+    pts = [waypoints[0].pos]
+    for w0, w1 in zip(waypoints, waypoints[1:]):
+        d = math.dist(w0.pos, w1.pos)
+        n = max(1, int(d / step))
+        pts += [tuple(w0.pos[i] + (w1.pos[i] - w0.pos[i]) * k / n for i in range(3)) for k in range(1, n + 1)]
+    return pts
+
+
+@pytest.mark.parametrize("arm", ["left", "right"])
+def test_gripper_path_keeps_clear_of_the_mug(arm):
+    """Below the rim + 60 mm, the gripper stays 100 mm from the cup axis (47 mm radius + the gripper).
+
+    The GPU demo (ad5b384) knocked the mug when the right arm went straight from its waiting pose to the handle.
+    """
+    ax, ay = L["mug"]["axis_xy"]
+    low = task.TABLE_Z + task.MUG_RIM_HEIGHT + 0.060
+    near = [p for p in _path(task.demo()[arm]) if p[2] < low]
+    assert near
+    assert min(math.hypot(p[0] - ax, p[1] - ay) for p in near) >= 0.100
+
+
+# ---------------------------------------------------------------------------
+# Rest is judged from poses, not from the velocity readings
+# ---------------------------------------------------------------------------
+def _settled(frames):
+    return [nominal()] + frames
+
+
+def test_sleeping_knife_with_a_frozen_velocity_reading_is_at_rest():
+    """GPU demo: the knife lay still on the plate but kept reporting 0.240 rad/s."""
+    frames = []
+    for _ in range(task.TH["rest_frames"] + 2):
+        k = knife_on_plate()
+        k.ang_vel = (0.240, 0.0, 0.0)
+        frames.append(with_(final_state(), knife=k))
+    assert run(_settled(frames)) is True
+
+
+def test_apple_jittering_in_the_bowl_is_at_rest():
+    """GPU demo: 0.01-0.03 m/s of contact jitter, 0.6 mm of movement in 3 s."""
+    frames = []
+    for i in range(task.TH["rest_frames"] + 2):
+        a = half_apple(0.24 + (0.0003 if i % 2 else -0.0003), 0.26, BOWL_FLOOR + HALF_H)
+        a.lin_vel, a.ang_vel = (0.03, 0.0, 0.0), (1.0, 0.0, 0.0)
+        frames.append(with_(final_state(), apple=a))
+    assert run(_settled(frames)) is True
+
+
+def test_knife_sliding_slowly_is_not_at_rest():
+    """Velocity reads zero but the knife creeps 1 mm per step across the plate: not settled."""
+    frames = []
+    for i in range(task.TH["rest_frames"] + 2):
+        k = knife(0.26 - 0.03 + 0.001 * i, -0.30, task.PLATE_HEIGHT + task.KNIFE_HEIGHT / 2 + 0.001, quat=qz(-90))
+        frames.append(with_(final_state(), knife=k))
+    assert run(_settled(frames)) is False
+    assert task.score(frames[-1]) == 0.75
+
+
+def test_rest_window_is_cleared_on_reset():
+    run([nominal()] + [final_state()] * (task.TH["rest_frames"] + 1))
+    assert len(task._STATE["recent"]) == task.TH["rest_frames"]
+    task.success(nominal())
+    assert len(task._STATE["recent"]) == 1
 
 
 def test_right_arm_waits_until_the_left_arm_is_done():
