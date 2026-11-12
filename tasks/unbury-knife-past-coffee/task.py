@@ -1,8 +1,9 @@
-"""Station table after someone cut fruit on it. Near the middle, a large white paper-towel sheet lies on something
-lumpy, with a red apple on top. Under the sheet, out of sight, a folded paper-towel pad lies on a small knife with a
-red handle, lying flat on the table with its blade toward the robot's left. To the left is an empty bowl. To the
-right, close to the robot, is a clean plate. Further out on the right, between the towels and the plate, stands a
-white mug full of hot coffee.
+"""Station table after someone cut fruit on it. Near the middle, a thick folded wad of white paper towels lies on
+the table with a large paper-towel sheet over it and a red apple on top. The sheet reaches past the wad on the side
+away from the robot and hides most of a small knife lying flat on the table there, blade toward the robot's left;
+only the knife's red handle sticks out from under the sheet's right edge. To the left is an empty bowl. To the right,
+close to the robot, is a clean plate. Further out on the right, between the towels and the plate, stands a white
+mug full of hot coffee.
 """
 
 import json
@@ -31,7 +32,6 @@ LOCAL_ASSETS = {
     "knife_ycb_local": "assets/knife/knife.usda",
     "bowl_ycb_local": "assets/bowl/bowl.usda",
     "plate_ycb_local": "assets/plate/plate.usda",
-    "coffee_fitted_local": "assets/coffee/coffee.usda",
 }
 
 
@@ -60,18 +60,18 @@ KNIFE_BUTT_LOCAL = (0.0, -0.085, 0.0)  # end of the handle
 KNIFE_HANDLE_END_Y = -0.017  # body-frame y where the red handle ends (the metal neck and blade follow)
 PLATE_HEIGHT = 0.020  # m, table to the plate's top surface: CONFIRM against the plate model
 
-# Official mug geometry measured offline at 120 mm total width, including its
-# handle. The loose coffee frustum has 2 mm radial wall clearance; its surface
-# starts 8 mm below the rim. GPU collision cooking still needs verification.
-COFFEE_INFO = json.loads((HERE / "assets/coffee/coffee_info.json").read_text())
-COFFEE_ASSET = "coffee_fitted_local"
+# Official mug geometry measured offline at 120 mm total width, including its handle. The coffee itself is not
+# modelled: a rigid "coffee" solid would never slosh, and fitting it inside a dynamic mug's convex collider is the
+# main suspect for the mug being thrown at reset in the first GPU run. The mug carries the weight of a full cup instead (MUG_MASS), and spilling is
+# judged from the mug's tilt and shift. Measurements: assets/mug/mug_info.json (rebuilt by make_mug_info.py).
+MUG_INFO = json.loads((HERE / "assets/mug/mug_info.json").read_text())
+MUG_MASS = 0.55  # kg: ~0.30 ceramic mug + ~0.25 coffee
 MUG_ASSET = "mug"  # Isaac Lab's mug (Objects/Mug/mug.usd), reachable from the GPU machine
 MUG_YAW = 0.0  # handle points to +x, away from the robot
-MUG_EXTENT = COFFEE_INFO["mug_extent_m"]
-MUG_BODY_RADIUS = COFFEE_INFO["mug_body_radius_m"]
-MUG_RIM_HEIGHT = COFFEE_INFO["mug_rim_height_m"]
-MUG_INNER_FLOOR = COFFEE_INFO["mug_inner_floor_m"]
-MUG_AXIS_FROM_POS = tuple(COFFEE_INFO["mug_axis_from_bbox_center_m"])
+MUG_EXTENT = MUG_INFO["mug_extent_m"]
+MUG_BODY_RADIUS = MUG_INFO["mug_body_radius_m"]
+MUG_RIM_HEIGHT = MUG_INFO["mug_rim_height_m"]
+MUG_AXIS_FROM_POS = tuple(MUG_INFO["mug_axis_from_bbox_center_m"])
 MUG_HANDLE_OFFSET = -MUG_AXIS_FROM_POS[0]
 # Offset of each object's ObjectState.pos from the xy it was spawned at, (dx, dy); zero until measured.
 POS_OFFSET = {}
@@ -82,80 +82,54 @@ POS_OFFSET = {}
 # ---------------------------------------------------------------------------
 LAYOUT = {
     "knife": {"xy": (0.26, 0.00), "length": 0.170},
-    "towel_pad": {"xy": (0.26, 0.00), "size": (0.120, 0.110, 0.008)},
-    "towel_sheet": {"xy": (0.26, 0.00), "size": (0.260, 0.240, 0.0015)},
-    "apple": {"xy": (0.26, 0.00), "radius": 0.033},
+    # The wad lies on the table beside the knife and carries the sheet and the apple, so every support under the
+    # apple is level by construction (the apple is a sphere: any tilt at all rolls it away). The sheet overhangs
+    # the knife without touching it: the wad is thicker than the knife. Only the handle sticks out past the
+    # sheet's -y edge. test_task.py checks every clearance below against the knife model.
+    "towel_pad": {"xy": (0.18, 0.065), "size": (0.110, 0.110, 0.016)},
+    "towel_sheet": {"xy": (0.20, 0.065), "size": (0.200, 0.180, 0.0015)},
+    "apple": {"xy": (0.18, 0.065), "radius": 0.033},
     "bowl": {"xy": (0.24, 0.26), "extent": 0.160},
     "plate": {"xy": (0.26, -0.30), "radius": 0.100},
     "mug": {"axis_xy": (0.32, -0.16)},
-    "coffee": {"height_below_rim": 0.008},
 }
 _MAX = LAYOUT["mug"]["axis_xy"]
 _MX, _MY = MUG_AXIS_FROM_POS[:2]
 LAYOUT["mug"]["xy"] = (_MAX[0] - _MX * math.cos(MUG_YAW) + _MY * math.sin(MUG_YAW),
                        _MAX[1] - _MX * math.sin(MUG_YAW) - _MY * math.cos(MUG_YAW))
-LAYOUT["coffee"]["xy"] = _MAX
-LAYOUT["coffee"]["radius"] = max(COFFEE_INFO["coffee_radii_m"])
-LAYOUT["coffee"]["height"] = COFFEE_INFO["coffee_height_m"]
 APPLE_RED = (0.629, 0.104, 0.138)  # the framework's apple colour
 WHITE = (0.93, 0.93, 0.91)
 PAPER = (0.97, 0.97, 0.95)
-COFFEE = (0.20, 0.11, 0.05)
 
-_PAD_Z = KNIFE_HEIGHT + LAYOUT["towel_pad"]["size"][2] / 2 + 0.002
-_SHEET_Z = KNIFE_HEIGHT + LAYOUT["towel_pad"]["size"][2] + LAYOUT["towel_sheet"]["size"][2] / 2 + 0.004
-_APPLE_Z = _SHEET_Z + LAYOUT["apple"]["radius"] + 0.003
+# Spawn heights (above the table, centres): each body starts 1 mm above the one it rests on, so nothing overlaps
+# at the first physics step and the drop is too small to bounce.
+SPAWN_GAP = 0.001
+_PAD_Z = LAYOUT["towel_pad"]["size"][2] / 2 + SPAWN_GAP
+_SHEET_Z = LAYOUT["towel_pad"]["size"][2] + LAYOUT["towel_sheet"]["size"][2] / 2 + 2 * SPAWN_GAP
+_APPLE_Z = _SHEET_Z + LAYOUT["towel_sheet"]["size"][2] / 2 + LAYOUT["apple"]["radius"] + SPAWN_GAP
 
 OBJECTS = [
     Asset("knife", KNIFE_ASSET, xy=LAYOUT["knife"]["xy"], extent=LAYOUT["knife"]["length"], mass=0.050,
           yaw=KNIFE_SPAWN_YAW),
     Box("towel_pad", pos=(*LAYOUT["towel_pad"]["xy"], TABLE_Z + _PAD_Z), size=LAYOUT["towel_pad"]["size"],
-        mass=0.003, color=PAPER),
+        mass=0.006, color=PAPER),
     Box("towel_sheet", pos=(*LAYOUT["towel_sheet"]["xy"], TABLE_Z + _SHEET_Z),
         size=LAYOUT["towel_sheet"]["size"], mass=0.004, color=PAPER),
     Sphere("apple", pos=(*LAYOUT["apple"]["xy"], TABLE_Z + _APPLE_Z), radius=LAYOUT["apple"]["radius"],
            mass=0.12, color=APPLE_RED),
     Asset("bowl", "bowl_ycb_local", xy=LAYOUT["bowl"]["xy"], extent=LAYOUT["bowl"]["extent"]),
     Asset("plate", "plate_ycb_local", xy=LAYOUT["plate"]["xy"], extent=2 * LAYOUT["plate"]["radius"]),
-    Asset("mug", MUG_ASSET, xy=LAYOUT["mug"]["xy"], extent=MUG_EXTENT, mass=0.30, color=WHITE, yaw=MUG_YAW),
-    Asset("coffee", COFFEE_ASSET, xy=LAYOUT["coffee"]["xy"], extent=COFFEE_INFO["coffee_extent_m"],
-          mass=0.25),
+    Asset("mug", MUG_ASSET, xy=LAYOUT["mug"]["xy"], extent=MUG_EXTENT, mass=MUG_MASS, color=WHITE,
+          yaw=MUG_YAW),
 ]
 
-
-def _install_coffee_placement():
-    """Elevate only this coffee asset; Arena's Asset API has no starting-height field.
-
-    The adapter lives in this task, changes no installed file, and is idempotent
-    across task reloads. All other assets use the unmodified placement function.
-    """
-    try:
-        from yam_arena import station
-    except ImportError:
-        return False
-    original = getattr(station.placement, "_unbury_original", station.placement)
-
-    def placement(item, lo, hi):
-        scale, pos, rot = original(item, lo, hi)
-        if item.asset == COFFEE_ASSET:
-            pos = (pos[0], pos[1], pos[2] + COFFEE_INFO["coffee_bottom_above_mug_bottom_m"])
-        return scale, pos, rot
-
-    placement._unbury_original = original
-    station.placement = placement
-    return True
-
-
-_install_coffee_placement()
 
 # Thresholds: development estimates, to be calibrated on GPU (see README).
 TH = {
     "rest_speed": 0.01,  # m/s
     "rest_spin": 0.10,  # rad/s
-    "mug_tilt_deg": 8.0,  # spill proxy
+    "mug_tilt_deg": 8.0,  # spill proxy: liquid 8 mm below the rim reaches it at ~12 deg (atan 8/38)
     "mug_shift": 0.015,  # cup axis, measured from where it stood at the start
-    "coffee_off_axis": 0.012,  # coffee centre this far from the cup axis has slid out
-    "coffee_rise": 0.020,  # coffee centre this far above its start has been lifted out
     "keepout_radius": MUG_BODY_RADIUS + 0.030,  # around the cup axis, no height limit
     "lift": 0.015,  # knife's lowest point above the table
     "touch": 0.003,  # table contact tolerance; also the maximum permitted penetration below the table
@@ -252,17 +226,8 @@ def _mug_shift(o):
     return _hdist(_mug_axis(o), ref)
 
 
-def _coffee_out(o):
-    c = o["coffee"]
-    z0 = _start("coffee_z")
-    rose = z0 is not None and float(c.pos[2]) - z0 > TH["coffee_rise"]
-    return _hdist(c.pos, _mug_axis(o)) > TH["coffee_off_axis"] or rose
-
-
 def _mug_spilt(o):
-    return (_tilt_deg(o["mug"].quat_xyzw) > TH["mug_tilt_deg"]
-            or _mug_shift(o) > TH["mug_shift"]
-            or _coffee_out(o))
+    return _tilt_deg(o["mug"].quat_xyzw) > TH["mug_tilt_deg"] or _mug_shift(o) > TH["mug_shift"]
 
 
 def _knife_lifted(o):
@@ -349,7 +314,7 @@ def _knife_set(o):
 
 
 def _all_rest(o):
-    return all(_rest(o[n]) for n in ("apple", "knife", "mug", "coffee", "towel_sheet", "towel_pad"))
+    return all(_rest(o[n]) for n in ("apple", "knife", "mug", "towel_sheet", "towel_pad"))
 
 
 def _expected_xy(name):
@@ -385,6 +350,7 @@ def _fresh_state():
         "apple_bruised": False,
         "mug_tilt_max": 0.0,
         "mug_shift_max": 0.0,
+        "mug_speed_max": 0.0,  # diagnostic only: calibrates a possible future "mug was hit" rule
         "knife_mug_min": math.inf,  # closest approach of the lifted knife, for calibration
         "start": {},
     }
@@ -414,13 +380,14 @@ def _observe(o):
         _STATE["bad_layout"] = not all(
             n in o and _hdist(o[n].pos, _expected_xy(n)) <= TH["layout_tol"] for n in LAYOUT
         )
-        _STATE["start"] = {"mug_axis": _mug_axis(o), "coffee_z": float(o["coffee"].pos[2])}
+        _STATE["start"] = {"mug_axis": _mug_axis(o)}
     _STATE["steps"] += 1
     _STATE["prev"] = _positions(o)
 
     m = o["mug"]
     _STATE["mug_tilt_max"] = max(_STATE["mug_tilt_max"], _tilt_deg(m.quat_xyzw))
     _STATE["mug_shift_max"] = max(_STATE["mug_shift_max"], _mug_shift(o))
+    _STATE["mug_speed_max"] = max(_STATE["mug_speed_max"], math.hypot(*(float(v) for v in m.lin_vel)))
     if _knife_lifted(o):
         _STATE["knife_mug_min"] = min(_STATE["knife_mug_min"], _knife_mug_hdist(o))
 
@@ -512,7 +479,7 @@ def _debug_snapshot(objects, ready):
         },
         "mug_axis": values(_mug_axis(objects)),
         "mug_tilt_deg": round(_tilt_deg(objects["mug"].quat_xyzw), 4),
-        "coffee_axis_gap": round(_hdist(objects["coffee"].pos, _mug_axis(objects)), 6),
+        "mug_speed_max": round(_STATE["mug_speed_max"], 6),
         "objects": {
             name: {field: values(getattr(objects[name], field))
                    for field in ("pos", "quat_xyzw", "low", "high", "lin_vel", "ang_vel")}
@@ -534,7 +501,7 @@ def success(objects):
     if DEBUG and _STATE["steps"] % 20 in (0, 1):
         print(
             "task_progress steps=%d fail=%s cap=%s score=%.2f mug_tilt_max=%.2fdeg mug_shift_max=%.1fmm "
-            "knife_mug_min=%.1fmm"
+            "mug_speed_max=%.3fm/s knife_mug_min=%.1fmm"
             % (
                 _STATE["steps"],
                 _zero_reason(objects),
@@ -542,6 +509,7 @@ def success(objects):
                 score(objects),
                 _STATE["mug_tilt_max"],
                 _STATE["mug_shift_max"] * 1000,
+                _STATE["mug_speed_max"],
                 _STATE["knife_mug_min"] * 1000 if _STATE["knife_mug_min"] < math.inf else -1.0,
             )
         )
@@ -571,6 +539,7 @@ def distance(objects):
 GRASP_FROM_CENTRE = 0.050  # m from the knife's centre toward the handle end: mid-handle
 TRAVEL_Z = 0.10  # carry height above the table
 KNIFE_ROUTE_X = 0.13  # x of the grip while the knife passes the mug
+PAD_GRIP_MIN_Z = 0.015  # m above the table: same as the knife grip
 TURN_DY = -0.04  # y of the turn relative to the plate centre: far enough from the mug for the tip's sweep
 
 
@@ -581,14 +550,15 @@ def _left_plan():
     sx, sy = LAYOUT["towel_sheet"]["xy"]
     near_edge = sx - LAYOUT["towel_sheet"]["size"][0] / 2
     px, py = LAYOUT["towel_pad"]["xy"]
-    pad_edge = py + LAYOUT["towel_pad"]["size"][1] / 2
+    pad_edge = py - LAYOUT["towel_pad"]["size"][1] / 2  # the wad's -y edge, clear of the bowl side
     plan = []
     plan += pick_place_waypoints((ax, ay, t + _APPLE_Z), (bx, by, t + 0.075), travel_z=t + 0.14)
     # Fingers along x. The left arm mirrors the right, so it turns the grip to -pi/2: turning to +pi/2
     # from the bowl leaves its wrist 30 degrees short (IK check). A parallel grip is the same either way.
-    plan += pick_place_waypoints((near_edge, 0.05, t + _SHEET_Z), (0.35, 0.18, t + 0.02),
+    plan += pick_place_waypoints((near_edge, sy, t + _SHEET_Z), (0.35, 0.18, t + 0.02),
                                  travel_z=t + TRAVEL_Z, yaw=-math.pi / 2)
-    plan += pick_place_waypoints((px, pad_edge, t + _PAD_Z), (0.10, 0.175, t + 0.02),
+    # Grip height as low as the knife grip (15 mm), not the wad's 9 mm centre, to keep the fingers off the table.
+    plan += pick_place_waypoints((px, pad_edge, t + max(_PAD_Z, PAD_GRIP_MIN_Z)), (0.10, 0.175, t + 0.02),
                                  travel_z=t + TRAVEL_Z, yaw=0.0)
     return plan
 

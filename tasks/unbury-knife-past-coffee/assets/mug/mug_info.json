@@ -1,0 +1,20 @@
+{
+  "source_url": "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Objects/Mug/mug.usd",
+  "source_sha256": "7e71c247626c8bd17aa27dd7ad8aac1205cae7e9fc8a40fc911e0caf4f76ec80",
+  "mug_extent_m": 0.12,
+  "mug_uniform_scale": 1.0909090593632946,
+  "mug_size_m": [
+    0.12000000000000001,
+    0.09490908687634332,
+    0.11454544901050936
+  ],
+  "mug_axis_from_bbox_center_m": [
+    -0.01708159932046042,
+    4.4191888567968185e-07,
+    0.0
+  ],
+  "mug_body_radius_m": 0.04745454343817166,
+  "mug_rim_height_m": 0.11454544901050936,
+  "mug_inner_floor_m": 0.006893536951408957,
+  "measurement": "mesh only: quads triangulated by fan; axis centred between opposite inner walls at 60 % height"
+}

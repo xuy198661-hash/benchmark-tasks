@@ -124,23 +124,15 @@ def mug(ax, ay, quat=ID):
     return S(c, quat, (ax - r, ay - r, T0), (ax + r + 2 * task.MUG_HANDLE_OFFSET, ay + r, T0 + h))
 
 
-def coffee(ax, ay, dz=0.0):
-    r = task.LAYOUT["coffee"]["radius"]
-    h = task.LAYOUT["coffee"]["height"]
-    z0 = task.COFFEE_INFO["coffee_bottom_above_mug_bottom_m"] + dz
-    return S((ax, ay, T0 + z0 + h / 2), ID, (ax - r, ay - r, T0 + z0), (ax + r, ay + r, T0 + z0 + h))
-
-
 def nominal():
     return {
         "knife": knife(0.26, 0.00, task.KNIFE_HEIGHT / 2),
-        "towel_pad": box(*L["towel_pad"]["xy"], task._PAD_Z - 0.002, 0.120, 0.110, 0.008),
-        "towel_sheet": box(0.26, 0.00, task._SHEET_Z - 0.004, 0.260, 0.240, 0.0015),
-        "apple": sphere(*L["apple"]["xy"], task._APPLE_Z - 0.007, 0.033),
+        "towel_pad": box(*L["towel_pad"]["xy"], task._PAD_Z - task.SPAWN_GAP, *L["towel_pad"]["size"]),
+        "towel_sheet": box(*L["towel_sheet"]["xy"], task._SHEET_Z - 2 * task.SPAWN_GAP, *L["towel_sheet"]["size"]),
+        "apple": sphere(*L["apple"]["xy"], task._APPLE_Z - 3 * task.SPAWN_GAP, 0.033),
         "bowl": cyl(0.24, 0.26, 0.080, 0.055),
         "plate": cyl(0.26, -0.30, 0.100, task.PLATE_HEIGHT),
         "mug": mug(0.32, -0.16),
-        "coffee": coffee(0.32, -0.16),
     }
 
 
@@ -155,9 +147,11 @@ def apple_in_bowl():
 
 
 def towels_aside():
+    """Where the scripted demo leaves the towels (see test_demo_left_arm_places_apple_and_clears_towels)."""
+    sheet, pad = L["towel_sheet"]["size"], L["towel_pad"]["size"]
     return {
-        "towel_sheet": box(0.48, 0.13, 0.001, 0.260, 0.240, 0.0015),
-        "towel_pad": box(0.10, 0.12, 0.004, 0.120, 0.110, 0.008),
+        "towel_sheet": box(0.45, 0.18, sheet[2] / 2, *sheet),
+        "towel_pad": box(0.10, 0.23, pad[2] / 2, *pad),
     }
 
 
@@ -190,6 +184,44 @@ def test_objects_cover_the_scored_names():
     for o in task.OBJECTS:
         names.append(o.name if REAL else (o[0][0] if o[0] else None))
     assert set(names) == set(L) == set(nominal())
+
+
+def test_mug_carries_a_full_cup_and_there_is_no_coffee_body():
+    specs = {o.name if REAL else o[0][0]: o for o in task.OBJECTS}
+    assert "coffee" not in specs and "coffee" not in L
+    assert task.MUG_MASS == pytest.approx(0.55)
+    if not REAL:  # the stub keeps the constructor arguments; the real Asset's fields are not part of the contract
+        assert specs["mug"][1]["mass"] == task.MUG_MASS
+
+
+def test_mug_measurements_record_their_source():
+    info = task.MUG_INFO
+    assert info["source_url"].endswith("/IsaacLab/Objects/Mug/mug.usd") and len(info["source_sha256"]) == 64
+    assert info["mug_extent_m"] == pytest.approx(0.120)
+    assert 0.0 < task.MUG_BODY_RADIUS < task.MUG_EXTENT / 2 and task.MUG_HANDLE_OFFSET > 0
+    assert (task.HERE / "assets/mug/make_mug_info.py").is_file()
+
+
+def test_textures_carry_no_embedded_metadata():
+    """Double-blind: no text, EXIF or content-credential chunks (they can name tools, people or paths)."""
+    import struct
+    textures = sorted((task.HERE / "assets").rglob("*.png"))
+    assert textures
+    for path in textures:
+        data, i, found = path.read_bytes(), 8, []
+        while i < len(data):
+            n, = struct.unpack(">I", data[i:i + 4])
+            kind = data[i + 4:i + 8].decode("latin-1")
+            if kind in ("tEXt", "iTXt", "zTXt", "eXIf", "caBX"):
+                found.append(kind)
+            i += 12 + n
+        assert not found, (path.name, found)
+
+
+def test_task_does_not_replace_framework_functions():
+    """Only the public task-file contract: no framework attribute is reassigned (no monkeypatching)."""
+    source = (HERE / "task.py").read_text()
+    assert "station." not in source and "placement" not in source
 
 
 def test_table_height_comes_from_the_scene_entry():
@@ -227,64 +259,65 @@ def test_knife_usd_matches_the_constants():
     assert (path.parent / "knife_texture.png").is_file()
 
 
-def test_approved_stack_is_centred_over_the_knife():
-    assert L["apple"]["xy"] == L["towel_pad"]["xy"] == L["knife"]["xy"]
-    # The apple's contact point and COM project inside both supporting towels.
-    for name in ("towel_pad", "towel_sheet"):
-        assert all(abs(L["apple"]["xy"][i] - L[name]["xy"][i]) < L[name]["size"][i] / 2 for i in (0, 1))
+def _knife_bounds():
+    """Body-frame bounding box of the knife's visual mesh (the model is not rotated at spawn)."""
+    pts = _usda_points(task.HERE / task.LOCAL_ASSETS[task.KNIFE_ASSET])
+    return [min(p[i] for p in pts) for i in range(3)], [max(p[i] for p in pts) for i in range(3)]
 
 
-def test_coffee_usd_fits_the_measured_mug_profile():
-    import numpy as np
-    from pxr import Usd, UsdGeom, UsdPhysics
-
-    info = task.COFFEE_INFO
-    stage = Usd.Stage.Open(str(task.HERE / task.LOCAL_ASSETS[task.COFFEE_ASSET]))
-    root = stage.GetDefaultPrim()
-    assert root.HasAPI(UsdPhysics.RigidBodyAPI)
-    assert not UsdPhysics.RigidBodyAPI(root).GetKinematicEnabledAttr().Get()
-    colliders = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.CollisionAPI)]
-    assert len(colliders) == 1
-    assert UsdPhysics.MeshCollisionAPI(colliders[0]).GetApproximationAttr().Get() == "convexHull"
-    points = np.asarray(UsdGeom.Mesh(colliders[0]).GetPointsAttr().Get())
-    assert len(points) == 64 < 255  # PhysX convex-hull vertex limit
-    bounds = UsdGeom.BBoxCache(0, ["default"]).ComputeWorldBound(root).ComputeAlignedRange()
-    assert all(abs(a + b) < 1e-7 for a, b in zip(bounds.GetMin(), bounds.GetMax()))
-    assert bounds.GetSize()[2] == pytest.approx(L["coffee"]["height"], abs=1e-7)
-    assert max(bounds.GetSize()[:2]) == pytest.approx(info["coffee_extent_m"], abs=1e-7)
-    radius = np.linalg.norm(points[:, :2], axis=1)
-    lower = float(radius[points[:, 2] < 0].max())
-    upper = float(radius[points[:, 2] > 0].max())
-    assert lower < upper
-    height = np.asarray(info["profile_heights_above_mug_bottom_m"])
-    fractions = (height - height[0]) / (height[-1] - height[0])
-    solid_radius = lower + fractions * (upper - lower)
-    assert np.min(np.asarray(info["profile_min_inner_radii_m"]) - solid_radius) >= 0.002 - 1e-7
-    assert info["floor_gap_min_m"] > 0.001
-    surface = info["coffee_bottom_above_mug_bottom_m"] + bounds.GetSize()[2]
-    assert task.MUG_RIM_HEIGHT - surface == pytest.approx(0.008, abs=1e-7)
+def _rect(name):
+    (x, y), (sx, sy, _) = L[name]["xy"], L[name]["size"]
+    return x - sx / 2, x + sx / 2, y - sy / 2, y + sy / 2
 
 
-@pytest.mark.skipif(not REAL, reason="needs the real yam_arena")
-def test_coffee_height_adapter_is_scoped_and_idempotent(monkeypatch):
-    import numpy as np
-    from yam_arena import station
+def test_wad_lies_on_the_table_beside_the_knife():
+    """The wad must not rest on the knife: a rigid plate on a ridge tilts (4-6 degrees in the GPU run)."""
+    assert task.KNIFE_SPAWN_YAW == 0.0
+    lo, _ = _knife_bounds()
+    _, pad_x1, _, _ = _rect("towel_pad")
+    assert L["knife"]["xy"][0] + lo[0] - pad_x1 >= 0.003
+    assert task._PAD_Z - L["towel_pad"]["size"][2] / 2 == pytest.approx(task.SPAWN_GAP)
 
-    original = station.placement._unbury_original
-    monkeypatch.setattr(station, "placement", original)
-    assert task._install_coffee_placement()
-    assert task._install_coffee_placement()
-    assert station.placement._unbury_original is original
-    lo, hi = (-0.04, -0.04, -0.05), (0.04, 0.04, 0.05)
-    ordinary = station.Item("mug", (0.30, -0.10), 0.120, yaw=0.0)
-    assert station.placement(ordinary, lo, hi) == original(ordinary, lo, hi)
-    item = station.Item(task.COFFEE_ASSET, L["coffee"]["xy"], task.COFFEE_INFO["coffee_extent_m"], yaw=0.0)
-    h, r = L["coffee"]["height"], L["coffee"]["radius"]
-    scale, pos, _ = station.placement(item, (-r, -r, -h / 2), (r, r, h / 2))
-    assert scale == pytest.approx(1.0)
-    assert np.asarray(pos)[:2] == pytest.approx(L["coffee"]["xy"])
-    # Includes the same 1 mm rest gap as the mug, plus its measured inner floor.
-    assert pos[2] - h / 2 == pytest.approx(T0 + station.REST_GAP + task.COFFEE_INFO["coffee_bottom_above_mug_bottom_m"])
+
+def test_sheet_clears_the_knife():
+    """The sheet rests on the wad only; the wad is thicker than the knife with 3 mm to spare."""
+    assert L["towel_pad"]["size"][2] - task.KNIFE_HEIGHT >= 0.003
+
+
+def test_apple_and_sheet_are_carried_by_the_wad_alone():
+    """Every support under the apple lies on the table, so it is level by construction. The apple
+    and the sheet's centre of mass sit over the wad with at least 20 mm to spare on every side."""
+    x0, x1, y0, y1 = _rect("towel_pad")
+    for name in ("apple", "towel_sheet"):
+        x, y = L[name]["xy"]
+        assert min(x - x0, x1 - x, y - y0, y1 - y) >= 0.020, name
+
+
+def test_spawn_stack_has_no_initial_overlap():
+    pad_top = task._PAD_Z + L["towel_pad"]["size"][2] / 2
+    sheet_half = L["towel_sheet"]["size"][2] / 2
+    assert task._SHEET_Z - sheet_half - pad_top == pytest.approx(task.SPAWN_GAP)
+    assert task._APPLE_Z - L["apple"]["radius"] - (task._SHEET_Z + sheet_half) == pytest.approx(task.SPAWN_GAP)
+
+
+def test_sheet_hides_the_blade_and_shows_the_handle():
+    lo, hi = _knife_bounds()
+    kx, ky = L["knife"]["xy"]
+    x0, x1, y0, y1 = _rect("towel_sheet")
+    assert x0 + 0.010 <= kx + lo[0] and kx + hi[0] <= x1 - 0.010, "blade covered across its width"
+    assert y1 - 0.010 >= ky + task.KNIFE_TIP_LOCAL[1], "tip covered"
+    assert y0 <= ky + task.KNIFE_HANDLE_END_Y - 0.005, "the metal starts under the sheet"
+    assert y0 - (ky + task.KNIFE_BUTT_LOCAL[1]) >= 0.040, "at least 40 mm of handle in view"
+    assert y0 - (ky - task.GRASP_FROM_CENTRE) >= 0.015, "the grip is clear of the sheet"
+
+
+def test_towels_start_clear_of_bowl_mug_and_plate():
+    for name in ("towel_sheet", "towel_pad"):
+        x0, x1, y0, y1 = _rect(name)
+        for xy, r in ((L["bowl"]["xy"], L["bowl"]["extent"] / 2 + 0.010),
+                      (L["mug"]["axis_xy"], task.TH["keepout_radius"]),
+                      (L["plate"]["xy"], L["plate"]["radius"] + 0.010)):
+            assert not task._rect_hits_disc((x0, y0), (x1, y1), xy, r), (name, xy)
 
 
 @pytest.mark.parametrize("name,width,min_depth", [("bowl", 0.160, 0.040), ("plate", 0.200, 0.010)])
@@ -457,23 +490,18 @@ def test_mug_tilt_spill_is_permanent():
     assert task.score(final_state()) == 0.0
 
 
-def test_coffee_sliding_out_is_spill():
-    out = with_(nominal(), coffee=coffee(0.32, -0.16 + 0.03))
-    assert task._coffee_out(out) is True
-    run([nominal(), out, final_state()])
-    assert task._STATE["zero"] == "coffee spilt"
-    assert task.score(final_state()) == 0.0
-
-
-def test_coffee_lifted_out_is_spill():
-    lifted = with_(nominal(), coffee=coffee(0.32, -0.16, dz=0.03))
-    run([nominal(), lifted])
-    assert task._STATE["zero"] == "coffee spilt"
-
-
-def test_coffee_settling_in_the_mug_is_not_spill():
-    settled = with_(nominal(), coffee=coffee(0.32, -0.158, dz=-0.001))
+def test_mug_settling_a_little_is_not_spill():
+    settled = with_(nominal(), mug=mug(0.32, -0.158))
     assert run([nominal(), settled, final_state()]) is True
+
+
+def test_mug_speed_is_diagnostic_only():
+    """A fast mug that stays upright and in place is recorded but does not change the score (for now)."""
+    hit = nominal()
+    hit["mug"].lin_vel = (0.5, 0.0, 0.0)
+    assert run([nominal(), hit, final_state()]) is True
+    assert task._STATE["mug_speed_max"] == pytest.approx(0.5)
+    assert task._STATE["zero"] is None
 
 
 def test_spill_is_measured_from_start_not_from_layout(monkeypatch):
@@ -488,7 +516,6 @@ def test_spill_is_measured_from_start_not_from_layout(monkeypatch):
     task.success(first)
     assert task._STATE["bad_layout"] is False
     assert task._STATE["zero"] is None
-    assert task._coffee_out(first) is False
 
 
 def test_mug_shift_spill_is_permanent():
@@ -699,8 +726,8 @@ def test_debug_print_does_not_change_result(capsys, monkeypatch):
                  if line.startswith("task_state ")]
     assert [s["step"] for s in snapshots] == [1, 20, 21]
     assert set(snapshots[0]["objects"]) == set(L)
-    assert snapshots[0]["objects"]["coffee"]["lin_vel"] == [0.0, 0.0, 0.0]
-    assert snapshots[0]["coffee_axis_gap"] == 0.0
+    assert snapshots[0]["objects"]["mug"]["lin_vel"] == [0.0, 0.0, 0.0]
+    assert snapshots[0]["mug_speed_max"] == 0.0
     assert snapshots[0]["checks"]["apple_in_bowl"] is False
 
 
