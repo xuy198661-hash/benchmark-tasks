@@ -1,0 +1,66 @@
+{
+  "status": "feasibility_failed_implementation_stopped",
+  "environment": {
+    "os": "macOS 26.6 arm64",
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "pytest": "9.2.0",
+    "framework": "real local yam_arena",
+    "framework_git_commit": "bd62771e60320433893bd1d2df0fc79b5ddcd6d1",
+    "isaac_sim": false,
+    "gpu": false
+  },
+  "audit_script_name": "gauge_preflight.py",
+  "audit_script_sha256": "4953b6d5bbf53d7d95ffacd27cdbb9493c3fb7a7d9747ae24d08591b219f7a52",
+  "preflight_sha256": "82dd94686ce5e52311b3caebcb1de8b239bda770d3259da6c2c08b340c814de3",
+  "baseline": {
+    "passed": 18,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 10.63
+  },
+  "initial_test_attempt": {
+    "passed": 7,
+    "errors": 11,
+    "reason": "Evidence copy was sandbox-denied; tests started before preflight.json existed. Copy retried with approved write access, then all tests rerun successfully."
+  },
+  "mutation_results": [
+    {
+      "mutation": "ignore_ik",
+      "pytest_exit_code": 1,
+      "summary": "2 failed, 2 passed, 14 deselected in 0.10s",
+      "caught": true
+    },
+    {
+      "mutation": "ignore_clearance",
+      "pytest_exit_code": 1,
+      "summary": "1 failed, 3 passed, 14 deselected in 0.10s",
+      "caught": true
+    },
+    {
+      "mutation": "ignore_finger_intersection",
+      "pytest_exit_code": 1,
+      "summary": "1 failed, 17 deselected in 3.15s",
+      "caught": true
+    },
+    {
+      "mutation": "ignore_dimensions",
+      "pytest_exit_code": 1,
+      "summary": "2 failed, 16 deselected in 0.10s",
+      "caught": true
+    }
+  ],
+  "not_implemented_due_to_gate": [
+    "task.py",
+    "task.json",
+    "scorer and task-scoring tests",
+    "GPU gripper reader",
+    "full-score demo",
+    "TASK_DEBUG runtime",
+    "GPU smoke",
+    "GPU full demo",
+    "run_limit validation",
+    "real-world support and release verification"
+  ]
+}
