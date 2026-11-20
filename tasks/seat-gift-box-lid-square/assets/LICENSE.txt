@@ -1,0 +1,3 @@
+The original printable base and lid designs, their STL files and USDA representations are dedicated to the public domain under CC0 1.0 Universal.
+https://creativecommons.org/publicdomain/zero/1.0/
+No third-party mesh or texture is included. Robot dimensions are measured facts from the external YAM framework; no robot mesh is redistributed.

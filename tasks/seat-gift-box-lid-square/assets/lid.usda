@@ -1,0 +1,64 @@
+#usda 1.0
+(
+    defaultPrim = "GiftBox"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "GiftBox" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+)
+{
+    bool physics:rigidBodyEnabled = true
+    float physics:mass = 0.04277504
+    point3f physics:centerOfMass = (-1.00472134932e-17, 5.78494094325e-19, 0.019487012987)
+    def Cube "panel" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        double3 xformOp:translate = (0, 0, 0.027)
+        double3 xformOp:scale = (0.108, 0.074, 0.002)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        bool physics:collisionEnabled = true
+    }
+    def Cube "side_positive" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        double3 xformOp:translate = (0, 0.036, 0.013)
+        double3 xformOp:scale = (0.108, 0.002, 0.026)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        bool physics:collisionEnabled = true
+    }
+    def Cube "side_negative" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        double3 xformOp:translate = (0, -0.036, 0.013)
+        double3 xformOp:scale = (0.108, 0.002, 0.026)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        bool physics:collisionEnabled = true
+    }
+    def Cube "end_positive" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        double3 xformOp:translate = (0.053, 0, 0.013)
+        double3 xformOp:scale = (0.002, 0.07, 0.026)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        bool physics:collisionEnabled = true
+    }
+    def Cube "end_negative" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        double3 xformOp:translate = (-0.053, 0, 0.013)
+        double3 xformOp:scale = (0.002, 0.07, 0.026)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        bool physics:collisionEnabled = true
+    }
+}

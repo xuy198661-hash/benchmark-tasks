@@ -1,0 +1,110 @@
+{
+  "low_m": [
+    -0.054,
+    -0.037,
+    0.0
+  ],
+  "high_m": [
+    0.054,
+    0.037,
+    0.028
+  ],
+  "size_m": [
+    0.108,
+    0.074,
+    0.028
+  ],
+  "center_of_mass_m": [
+    -1.004721349315047e-17,
+    5.784940943251912e-19,
+    0.019487012987013
+  ],
+  "volume_m3": 3.4495999999999996e-05,
+  "mass_kg": 0.04277503999999999,
+  "triangles": 92,
+  "watertight_edges": true,
+  "stl_sha256": "a04f8d152c163a238320645c61d2f4a4146a0353a2da36dc90f2938bfbad13bf",
+  "units": "m (STL files use mm)",
+  "source": "Original printable design; no physical sample measured",
+  "material": "PLA, solid walls and floor, 100 percent infill",
+  "density_kg_m3": 1240.0,
+  "print_linear_tolerance_m": 0.0002,
+  "rest_pose": "panel up, skirt down",
+  "panels": [
+    {
+      "name": "panel",
+      "size_m": [
+        0.108,
+        0.074,
+        0.002
+      ],
+      "center_m": [
+        0,
+        0,
+        0.027
+      ]
+    },
+    {
+      "name": "side_positive",
+      "size_m": [
+        0.108,
+        0.002,
+        0.026000000000000002
+      ],
+      "center_m": [
+        0,
+        0.036,
+        0.013000000000000001
+      ]
+    },
+    {
+      "name": "side_negative",
+      "size_m": [
+        0.108,
+        0.002,
+        0.026000000000000002
+      ],
+      "center_m": [
+        0,
+        -0.036,
+        0.013000000000000001
+      ]
+    },
+    {
+      "name": "end_positive",
+      "size_m": [
+        0.002,
+        0.06999999999999999,
+        0.026000000000000002
+      ],
+      "center_m": [
+        0.053,
+        0,
+        0.013000000000000001
+      ]
+    },
+    {
+      "name": "end_negative",
+      "size_m": [
+        0.002,
+        0.06999999999999999,
+        0.026000000000000002
+      ],
+      "center_m": [
+        -0.053,
+        0,
+        0.013000000000000001
+      ]
+    }
+  ],
+  "inner_xy_m": [
+    0.104,
+    0.06999999999999999
+  ],
+  "panel_low_m": 0.026,
+  "panel_high_m": 0.028,
+  "panel_thickness_m": 0.002,
+  "skirt_height_m": 0.026,
+  "extent_m": 0.108,
+  "usda_sha256": "cabf3f4b89a4a8af358646a72c35fd5c018a44df8170e685a30f4a307ca086b6"
+}

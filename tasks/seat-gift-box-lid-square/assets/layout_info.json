@@ -1,0 +1,29 @@
+{
+  "base_xy_m": [
+    0.24,
+    -0.1
+  ],
+  "lid_xy_m": [
+    0.2,
+    -0.26
+  ],
+  "base_yaw_rad": 0.0,
+  "lid_yaw_rad": 0.0,
+  "spawn_gap_m": 0.001,
+  "gift_size_m": [
+    0.06,
+    0.038,
+    0.02
+  ],
+  "gift_density_kg_m3": 700.0,
+  "grip_above_lid_bottom_m": 0.019,
+  "release_gap_m": 0.004,
+  "travel_above_table_m": 0.12,
+  "clearance_per_side_m": [
+    0.001999999999999995,
+    0.001999999999999995
+  ],
+  "seated_lid_bottom_m": 0.014000000000000002,
+  "seated_lid_top_m": 0.042,
+  "print_instructions": "Print base floor down and lid panel down without supports, 0.2 mm layers, 0.4 mm nozzle, 100 percent infill, PLA. Remove elephant foot without enlarging the cavity beyond the stated tolerance; inspect the finished dimensions. Invert the lid to panel-up for the scene."
+}

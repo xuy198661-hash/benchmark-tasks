@@ -1,0 +1,105 @@
+{
+  "environment": {
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "platform": "macOS-26.6-arm64-arm-64bit",
+    "isaac_sim": false,
+    "real_yam_arena": true
+  },
+  "grasp": {
+    "object": "lid",
+    "width_mm": 74.0,
+    "height_mm": 26.0,
+    "tcp_above_bottom_mm": 19.0
+  },
+  "allowed_primitives": true,
+  "constructor_bind_count": 3,
+  "spawn_overlaps": [],
+  "duration_s": 23.5,
+  "release_gap_mm": 4.0,
+  "collision_margin_mm": 1.0,
+  "arms": {
+    "left": {
+      "frames": 471,
+      "worst_ik_mm": 0.09726142961686549,
+      "worst_ik_deg": 0.007002431155079843,
+      "joint_limits": true,
+      "worst_pose": {
+        "step": 34,
+        "label": "park",
+        "target_tcp_m": [
+          0.132357136734513,
+          0.3003040017741661,
+          0.8760417027307409
+        ],
+        "actual_tcp_m": [
+          0.13242217264961575,
+          0.3003394155756095,
+          0.8761047580882071
+        ],
+        "q_rad": [
+          -0.03803047587253792,
+          0.9618069727402198,
+          0.8778335308834477,
+          -1.427866986489863,
+          -0.0022163173785343577,
+          -0.03793658004349798
+        ]
+      },
+      "fixed_collision_count": 0,
+      "base_collision_count": 0,
+      "fixed_hits_first_30": [],
+      "base_hits_first_30": [],
+      "min_aabb_gap_m": 0.07001720054590044,
+      "closest": {
+        "step": 40,
+        "label": "park",
+        "link": "link1",
+        "mesh": "link1_009.stl",
+        "fixture": "table"
+      }
+    },
+    "right": {
+      "frames": 471,
+      "worst_ik_mm": 0.09724697169725549,
+      "worst_ik_deg": 0.012112755144060341,
+      "joint_limits": true,
+      "worst_pose": {
+        "step": 34,
+        "label": "park",
+        "target_tcp_m": [
+          0.132357136734513,
+          -0.30030349822583385,
+          0.8760417027307409
+        ],
+        "actual_tcp_m": [
+          0.1324221714096847,
+          -0.3003388740259444,
+          0.8761047583989725
+        ],
+        "q_rad": [
+          0.03799586110294932,
+          0.9618070365687879,
+          0.8778335564793835,
+          -1.42786690855914,
+          0.0022069656692510617,
+          0.037920238782349125
+        ]
+      },
+      "fixed_collision_count": 0,
+      "base_collision_count": 0,
+      "fixed_hits_first_30": [],
+      "base_hits_first_30": [],
+      "min_aabb_gap_m": 0.004013279208897935,
+      "closest": {
+        "step": 300,
+        "label": "lower",
+        "link": "tip_right",
+        "mesh": "tip_right_008.stl",
+        "fixture": "base/side_negative"
+      }
+    }
+  },
+  "failures": [],
+  "passed": true
+}

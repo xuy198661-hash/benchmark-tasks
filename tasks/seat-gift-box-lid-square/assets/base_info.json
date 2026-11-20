@@ -1,0 +1,110 @@
+{
+  "low_m": [
+    -0.05,
+    -0.033,
+    0.0
+  ],
+  "high_m": [
+    0.05,
+    0.033,
+    0.04
+  ],
+  "size_m": [
+    0.1,
+    0.066,
+    0.04
+  ],
+  "center_of_mass_m": [
+    -1.9190222808673895e-18,
+    -1.1043945889892098e-18,
+    0.014020304568527917
+  ],
+  "volume_m3": 3.782400000000002e-05,
+  "mass_kg": 0.04690176000000003,
+  "triangles": 92,
+  "watertight_edges": true,
+  "stl_sha256": "e015be1a35ac00d690de507749f98621c98951da1641d58831fd07fd4840fefc",
+  "units": "m (STL files use mm)",
+  "source": "Original printable design; no physical sample measured",
+  "material": "PLA, solid walls and floor, 100 percent infill",
+  "density_kg_m3": 1240.0,
+  "print_linear_tolerance_m": 0.0002,
+  "rest_pose": "flat floor down",
+  "panels": [
+    {
+      "name": "panel",
+      "size_m": [
+        0.1,
+        0.066,
+        0.002
+      ],
+      "center_m": [
+        0,
+        0,
+        0.001
+      ]
+    },
+    {
+      "name": "side_positive",
+      "size_m": [
+        0.1,
+        0.002,
+        0.038
+      ],
+      "center_m": [
+        0,
+        0.032,
+        0.021
+      ]
+    },
+    {
+      "name": "side_negative",
+      "size_m": [
+        0.1,
+        0.002,
+        0.038
+      ],
+      "center_m": [
+        0,
+        -0.032,
+        0.021
+      ]
+    },
+    {
+      "name": "end_positive",
+      "size_m": [
+        0.002,
+        0.062,
+        0.038
+      ],
+      "center_m": [
+        0.049,
+        0,
+        0.021
+      ]
+    },
+    {
+      "name": "end_negative",
+      "size_m": [
+        0.002,
+        0.062,
+        0.038
+      ],
+      "center_m": [
+        -0.049,
+        0,
+        0.021
+      ]
+    }
+  ],
+  "inner_xy_m": [
+    0.096,
+    0.062
+  ],
+  "panel_low_m": 0.0,
+  "panel_high_m": 0.002,
+  "panel_thickness_m": 0.002,
+  "skirt_height_m": null,
+  "extent_m": 0.1,
+  "usda_sha256": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854"
+}
