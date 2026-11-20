@@ -1,25 +1,24 @@
 {
   "environment": {
-    "python": "3.12.14",
-    "numpy": "2.3.5",
-    "platform": "macOS-26.6-arm64-arm-64bit",
+    "python": "3.12.16",
+    "numpy": "2.5.4",
     "isaac_sim": false
   },
   "grasp_dimensions_mm": [
     {
       "name": "block_1",
       "width": 25.0,
-      "height": 25.0
+      "height": 40.0
     },
     {
       "name": "block_2",
       "width": 30.0,
-      "height": 25.0
+      "height": 40.0
     },
     {
       "name": "block_3",
       "width": 35.0,
-      "height": 25.0
+      "height": 40.0
     }
   ],
   "tip_measurement": {
@@ -47,91 +46,86 @@
       }
     ],
     "d_m": 0.012842499534989393,
-    "minimum_tip_above_bottom_m": 0.005
+    "minimum_tip_above_bottom_m": 0.023
   },
-  "grip_z_m": 0.017842499534989394,
+  "grip_z_m": 0.03584249953498939,
   "overlaps": [],
-  "duration_s": 99.0,
+  "clearance_required_m": 0.003,
   "arms": {
     "left": {
-      "frames": 1981,
-      "worst_ik_mm": 0.09205736955684374,
-      "worst_ik_deg": 0.012565079190478024,
+      "frames": 2925,
+      "worst_ik_mm": 0.08296550816074842,
+      "worst_ik_deg": 0.012797862761765802,
       "joint_limits": true,
-      "collisions": [],
       "collision_count": 0,
+      "collisions": [],
       "worst_pose": {
-        "step": 1368,
-        "time_s": 68.4,
-        "label": "2 tray lower",
-        "target_tcp": [
-          0.11199999999999999,
-          0.25,
-          0.8558244473288135
-        ],
-        "actual_tcp": [
-          0.11199319955931643,
-          0.2499993852729921,
-          0.8559162511163548
-        ],
-        "position_error_mm": 0.09205736955684374,
-        "q_rad": [
-          -0.4565332918955141,
-          0.980745720046749,
-          0.8066445245643011,
-          -1.396813406971988,
-          -9.644346086430105e-06,
-          -0.4565262816822929
-        ]
+        "step": 735,
+        "label": "1 handoff source clear",
+        "position_error_mm": 0.08296550816074842
       },
-      "min_aabb_clearance_m": 0.005016082133284305,
-      "closest": [
-        320,
-        "1 go close",
-        "tip_right",
-        "tip_right_008.stl",
-        "gauge_base"
-      ]
+      "min_aabb_clearance_m": 0.016131599939632736,
+      "minimum_convex_clearance": {
+        "distance_m": 0.021254280901540596,
+        "lower_m": 0.021254280901540603,
+        "upper_m": 0.021254280901540596,
+        "converged": true,
+        "witness_a_m": [
+          0.1992503737430969,
+          -0.007488324624281062,
+          0.7775841307275515
+        ],
+        "witness_b_m": [
+          0.216,
+          -0.007488324624281065,
+          0.7645000000000001
+        ],
+        "iterations": 6,
+        "step": 438,
+        "label": "1 go descend",
+        "link": "tip_right",
+        "mesh": "tip_right_008.stl",
+        "fixture": "no_go_anvil_2"
+      },
+      "min_tip_above_anvil_during_manipulation_m": 0.006017181754903178
     },
     "right": {
-      "frames": 1981,
-      "worst_ik_mm": 0.09182768610024909,
-      "worst_ik_deg": 0.013347954812059661,
+      "frames": 2925,
+      "worst_ik_mm": 0.08386803231043999,
+      "worst_ik_deg": 0.012797862785829926,
       "joint_limits": true,
-      "collisions": [],
       "collision_count": 0,
+      "collisions": [],
       "worst_pose": {
-        "step": 648,
-        "time_s": 32.4,
-        "label": "1 tray lower",
-        "target_tcp": [
-          0.11199999999999999,
-          -0.29,
-          0.8558244473288136
-        ],
-        "actual_tcp": [
-          0.11199174348894239,
-          -0.2899945026789199,
-          0.8559157377084854
-        ],
-        "position_error_mm": 0.09182768610024909,
-        "q_rad": [
-          0.1331932696829821,
-          0.9290737576513065,
-          0.7863147756999829,
-          -1.428148255629163,
-          8.275073610056352e-06,
-          0.13320696067604212
-        ]
+        "step": 2889,
+        "label": "3 park",
+        "position_error_mm": 0.08386803231043999
       },
-      "min_aabb_clearance_m": 0.0050133834203750505,
-      "closest": [
-        1040,
-        "2 go close",
-        "tip_left",
-        "tip_left_015.stl",
-        "gauge_base"
-      ]
+      "min_aabb_clearance_m": 0.016131863880712853,
+      "minimum_convex_clearance": {
+        "distance_m": 0.021251530003171686,
+        "lower_m": 0.021251530003171683,
+        "upper_m": 0.021251530003171686,
+        "converged": true,
+        "witness_a_m": [
+          0.19928199991971235,
+          0.078012019695334,
+          0.7776200610056208
+        ],
+        "witness_b_m": [
+          0.216,
+          0.078012019695334,
+          0.7645000000000001
+        ],
+        "iterations": 7,
+        "step": 1547,
+        "label": "2 go close",
+        "link": "tip_left",
+        "mesh": "tip_left_015.stl",
+        "fixture": "go_anvil_2"
+      },
+      "min_tip_above_anvil_during_manipulation_m": 0.006017181799998772
     }
-  }
+  },
+  "duration_s": 146.2
 }

@@ -5,6 +5,8 @@ starts on the left and two start on the right; all long edges face forward.
 """
 from collections import deque
 import json
+import importlib.util
+from functools import lru_cache
 import math
 import os
 from pathlib import Path
@@ -21,7 +23,9 @@ TABLE_Z = TABLE_TOP[SCENE]
 SCORE_OVER = 'end'
 SUCCESS_HOLD_S = 1.0
 CONTROL_HZ = 20
-RUN_LIMIT = 2600
+RUN_LIMIT = 3000
+RELEASE_GAP = .001
+ALIGN_HOLD_S = 1.5
 OBJECTS = [Box(**row) for row in GEOMETRY['objects']]
 SPECS = {o.name: o for o in OBJECTS}
 BLOCKS = tuple(o.name for o in OBJECTS if o.free)
@@ -58,6 +62,7 @@ MAX_IMPACT_SPEED = .8
 _step = 0
 _started = False
 _failed = ''
+_invalid = {}
 _last_positions = None
 _windows = {n: deque(maxlen=REST_WINDOW) for n in BLOCKS}
 _dwell = {n: {'go': 0, 'no_go': 0} for n in BLOCKS}
@@ -102,13 +107,17 @@ def read_grippers():
             meta = view.shared_metatype
             names, links = list(meta.dof_names), list(meta.link_names)
             q = _numpy(view.get_dof_positions())[0]
-            pose = _numpy(view.get_link_transforms())[0, links.index('gripper')]
+            transforms = _numpy(view.get_link_transforms())[0]
+            pose = transforms[links.index('gripper')]
+            link_poses = {n: transforms[links.index(n)].tolist()
+                          for n in ('gripper', 'tip_left', 'tip_right')}
             rotation = quat_xyzw_to_matrix(pose[3:7])
             gap = -float(q[names.index('joint7')] + q[names.index('joint8')])
             tcp = pose[:3] + rotation @ np.array(TCP_OFFSET)
             if not (np.all(np.isfinite(tcp)) and -.0001 <= gap <= .0941):
                 raise ValueError('invalid gripper state')
-            readings.append({'tcp': tcp, 'gap': gap, 'axis': rotation[:, 0]})
+            readings.append({'tcp': tcp, 'gap': gap, 'axis': rotation[:, 0],
+                             'link_poses_m_xyzw': link_poses})
         return readings, 'ok'
     except Exception as error:
         _views = None
@@ -303,48 +312,71 @@ def _credited(name, objects):
 
 
 def _count(objects):
-    if not _started or _failed or not _valid(objects):
+    if not _started or _failed or _current_invalid(objects):
         return 0
     return sum(bool(_credited(name, objects)) for name in BLOCKS)
 
 
+def _clear_checks(name):
+    _checks[name] = {'go': None, 'no_go': None}
+    _dwell[name] = {'go': 0, 'no_go': 0}
+    _windows[name].clear()
+
+
+def _current_invalid(objects):
+    if not _valid(objects):
+        return {'scene': 'missing, malformed or changed object'}
+    invalid = {}
+    for obj in OBJECTS:
+        state = objects[obj.name]
+        r = quat_xyzw_to_matrix(state.quat_xyzw)
+        if not obj.free:
+            if np.linalg.norm(state.pos-obj.pos) > .0005 or np.max(np.abs(r-np.eye(3))) > .001:
+                invalid['scene'] = 'fixed structure moved'
+            continue
+        if r[2, 2] < math.cos(TIP_LIMIT):
+            invalid[obj.name] = 'block tipped; repeat inspections after recovery'
+        elif not .03 <= state.pos[0] <= .55 or abs(state.pos[1]) > .57:
+            invalid[obj.name] = 'outside work envelope'
+        elif _released(obj.name, objects) and _still(obj.name, objects):
+            for tray in TRAYS:
+                if _tray(obj.name, tray, objects) and (tray != _expected(obj.name) or not _complete(obj.name)):
+                    invalid[obj.name] = 'wrong or uninspected tray placement'
+    return invalid
+
+
 def success(objects):
-    global _step, _started, _failed, _last_positions, _grips, _grip_reason
+    global _step, _started, _failed, _invalid, _last_positions, _grips, _grip_reason
     _step += 1
     valid = _valid(objects)
     nominal = _nominal(objects) if valid else False
-    positions = {name: np.array(objects[name].pos, copy=True) for name in BLOCKS} if valid else None
+    positions = {n: np.array(objects[n].pos, copy=True) for n in BLOCKS} if valid else None
     jumped = (positions is not None and _last_positions is not None and any(
         np.linalg.norm(positions[n]-_last_positions[n]) > RESET_JUMP for n in BLOCKS))
     if nominal and jumped:
         _step = 1
         _started, _failed = True, ''
         for name in BLOCKS:
-            _windows[name].clear()
-            _dwell[name] = {'go': 0, 'no_go': 0}
-            _checks[name] = {'go': None, 'no_go': None}
+            _clear_checks(name)
     elif not _started:
-        _started = True
-        if not nominal:
-            _failed = 'invalid initial layout'
+        _started = nominal
     _grips, _grip_reason = read_grippers()
-    if not valid:
-        _failed = _failed or 'missing, malformed or changed object'
-    else:
-        for obj in OBJECTS:
-            state = objects[obj.name]
-            r = quat_xyzw_to_matrix(state.quat_xyzw)
-            if not obj.free:
-                if np.linalg.norm(state.pos-obj.pos) > .0005 or np.max(np.abs(r-np.eye(3))) > .001:
-                    _failed = _failed or 'fixed structure moved'
+    _invalid = _current_invalid(objects)
+    if not _started:
+        _invalid['scene'] = 'invalid initial layout'
+    for name in BLOCKS:
+        if 'scene' in _invalid or name in _invalid:
+            _clear_checks(name)
+    if valid and _started:
+        for name in BLOCKS:
+            state = objects[name]
+            if state.low[2] < TABLE_Z-.002:
+                _failed = _failed or 'block fell below table'
+            if np.linalg.norm(state.lin_vel) > MAX_IMPACT_SPEED:
+                _failed = _failed or 'block impact speed exceeded'
+            if _invalid or _failed:
                 continue
-            name = obj.name
             _windows[name].append(np.array(state.pos, copy=True))
-            if r[2, 2] < math.cos(TIP_LIMIT):
-                _failed = _failed or 'block tipped'
-            if (state.low[2] < TABLE_Z-.002 or not .03 <= state.pos[0] <= .55
-                    or abs(state.pos[1]) > .57 or np.linalg.norm(state.lin_vel) > MAX_IMPACT_SPEED):
-                _failed = _failed or 'block knocked out or impact'
             released, still = _released(name, objects), _still(name, objects)
             for gauge in ('go', 'no_go'):
                 permitted = gauge == 'go' or _checks[name]['go'] == 'seated'
@@ -352,28 +384,103 @@ def success(objects):
                 _dwell[name][gauge] = _dwell[name][gauge]+1 if reading else 0
                 if reading and _dwell[name][gauge] >= DWELL_FRAMES and _checks[name][gauge] is None:
                     _checks[name][gauge] = reading
-            if released and still:
-                for tray in TRAYS:
-                    if _tray(name, tray, objects) and (tray != _expected(name) or not _complete(name)):
-                        _failed = _failed or 'wrong or uninspected tray placement'
     _last_positions = positions if positions is not None else _last_positions
     done = not _failed and _count(objects) == len(BLOCKS)
-    if os.environ.get('TASK_DEBUG') and (_step == 1 or _step % 20 == 0):
-        contact_debug = None
-        if valid:
-            contact_debug = {}
-            for name in BLOCKS:
-                z = _bottom(objects[name], SPECS[name].size)[:, 2]
-                contact_debug[name] = {
-                    'bottom_base_gap_mm': [float((z.min()-BASE_TOP)*1000), float((z.max()-BASE_TOP)*1000)],
-                    'bottom_anvil_gap_mm': [float((z.min()-ANVIL_TOP)*1000), float((z.max()-ANVIL_TOP)*1000)],
-                    'reading': {g: _gauge_reading(name, g, objects) for g in GAPS}}
-        print('task_progress ' + json.dumps({'step': _step, 'checks': _checks,
-              'credited': _count(objects), 'failed': _failed, 'gripper': _grip_reason,
-              'pad_gaps_mm': None if _grips is None else [g['gap']*1000 for g in _grips],
-              'tcp_m': None if _grips is None else [np.asarray(g['tcp']).tolist() for g in _grips],
-              'contact': contact_debug}), flush=True)
+    if os.environ.get('TASK_DEBUG') and debug_due(_step):
+        _print_progress(objects, valid)
     return bool(done)
+
+
+@lru_cache(maxsize=1)
+def collision_geometry():
+    spec = importlib.util.spec_from_file_location('gauge_collision_geometry', HERE/'collision_geometry.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@lru_cache(maxsize=1)
+def demo_timeline():
+    rows = []
+    for side, waypoints in demo().items():
+        start = 0
+        for point in waypoints:
+            end = start + round(point.duration*CONTROL_HZ)
+            rows.append({'side': side, 'start_step': start, 'end_step': end,
+                         'label': point.label, 'waypoint_target_tcp_m': list(point.pos)})
+            start = end
+    return tuple(rows)
+
+
+def debug_due(step):
+    # inspect_embodiment calls success only after control steps, never on reset.
+    k = step
+    critical = ('descend', 'lower first', 'lower second', 'release', 'align', 'hold', 'close')
+    return step == 1 or step % CONTROL_HZ == 0 or any(
+        any(row['label'].endswith(word) for word in critical)
+        and row['start_step']-CONTROL_HZ <= k <= row['end_step']+CONTROL_HZ
+        for row in demo_timeline())
+
+
+def alignment(name, gauge, objects):
+    state = objects[name]
+    x, y, gap = GAPS[gauge]
+    r = quat_xyzw_to_matrix(state.quat_xyzw)
+    half_y = float(np.abs(r[1]) @ np.asarray(SPECS[name].size)/2)
+    error = float(state.pos[1]-y)
+    clearances = [gap/2+error-half_y, gap/2-error-half_y]
+    passes = SPECS[name].size[1] < gap
+    return {'block': name, 'gauge': gauge, 'xy_error_mm': ((state.pos[:2]-[x, y])*1000).tolist(),
+            'lateral_error_mm': error*1000, 'side_clearance_mm': [v*1000 for v in clearances],
+            'expected': 'pass' if passes else 'blocked',
+            'accepted': bool(min(clearances) >= .001-1e-12 if passes else abs(error) < .0005)}
+
+
+def _print_progress(objects, valid):
+    k = _step
+    phases = [r for r in demo_timeline() if r['start_step'] <= k < r['end_step']]
+    entering = [r for r in demo_timeline() if r['start_step'] == k and r['label'].endswith('lower second')]
+    contact, alignments = {}, []
+    if valid:
+        for name in BLOCKS:
+            state = objects[name]; corners = _bottom(state, SPECS[name].size); z = corners[:, 2]
+            contact[name] = {
+                'pos_m': state.pos.tolist(), 'quat_xyzw': state.quat_xyzw.tolist(),
+                'lin_vel_m_s': state.lin_vel.tolist(), 'ang_vel_rad_s': state.ang_vel.tolist(),
+                'bottom_corners_m': corners.tolist(),
+                'bottom_base_gap_mm': [float((z.min()-BASE_TOP)*1000), float((z.max()-BASE_TOP)*1000)],
+                'bottom_anvil_gap_mm': [float((z.min()-ANVIL_TOP)*1000), float((z.max()-ANVIL_TOP)*1000)],
+                'reading': {g: _gauge_reading(name, g, objects) for g in GAPS},
+                'released': bool(_released(name, objects)), 'still': bool(_still(name, objects)),
+                'dwell': _dwell[name], 'complete': bool(_complete(name)),
+                'tray_supported': bool(_tray(name, _expected(name), objects))}
+        for row in entering:
+            number, where = row['label'].split()[:2]
+            if where in GAPS:
+                alignments.append(alignment('block_'+number, where, objects))
+        for row in phases:
+            words = row['label'].split()
+            if words[0].isdigit():
+                name, where = 'block_'+words[0], words[1]
+                support = (FLOOR_TOP if where == 'tray' else
+                           (BASE_TOP if SPECS[name].size[1] < GAPS[where][2] else ANVIL_TOP)
+                           if where in GAPS else TABLE_Z)
+                z = _bottom(objects[name], SPECS[name].size)[:, 2]
+                contact[name]['target_support_gap_mm'] = ((z-support)*1000).tolist()
+    clearance = None
+    if valid and _grips is not None:
+        try:
+            clearance = [collision_geometry().measured_clearance(g, objects, SPECS, ANVIL_TOP) for g in _grips]
+        except Exception as error:
+            clearance = {'reason': 'clearance unavailable: '+type(error).__name__}
+    print('task_progress ' + json.dumps({'step': _step, 'action_step': k,
+          'phase': phases, 'second_descent_alignment': alignments,
+          'checks': _checks, 'credited': _count(objects), 'failed': _failed, 'invalid': _invalid,
+          'gripper': _grip_reason, 'gripper_reasons': [_grip_reason]*2,
+          'pad_gaps_mm': None if _grips is None else [g['gap']*1000 for g in _grips],
+          'tcp_m': None if _grips is None else [np.asarray(g['tcp']).tolist() for g in _grips],
+          'link_poses_m_xyzw': None if _grips is None else [g.get('link_poses_m_xyzw') for g in _grips],
+          'fixture_clearance': clearance, 'contact': contact}), flush=True)
 
 
 def score(objects):
@@ -410,16 +517,21 @@ def demo():
             p = (x+GRIP_DX, y, bottom+GRIP_Z)
             for duration, pos, grip, label in (
                 (1.5, (*p[:2], HOVER), FINGER_OPEN, 'approach'),
-                (1.5, p, FINGER_OPEN, 'descend'), (.8, p, FINGER_CLOSED, 'close'),
+                (1.5, p, FINGER_OPEN, 'descend'),
+                (ALIGN_HOLD_S, p, FINGER_OPEN, 'align'), (.8, p, FINGER_CLOSED, 'close'),
                 (1.2, (*p[:2], HOVER), FINGER_CLOSED, 'lift')):
                 add(side, duration, pos, grip, f'{i} {where} {label}')
         def place(x, y, bottom, where):
-            p = (x+GRIP_DX, y, bottom+GRIP_Z+.004)
+            p = (x+GRIP_DX, y, bottom+GRIP_Z+RELEASE_GAP)
+            first_bottom = ANVIL_TOP+.010 if where in GAPS else bottom+.010
+            first = (*p[:2], first_bottom+GRIP_Z)
             for duration, pos, grip, label in (
                 (1.8, (*p[:2], HOVER), FINGER_CLOSED, 'carry'),
-                (1.2, p, FINGER_CLOSED, 'lower'), (.5, p, FINGER_CLOSED, 'hold'),
+                (1.2, first, FINGER_CLOSED, 'lower first'),
+                (ALIGN_HOLD_S, first, FINGER_CLOSED, 'align'),
+                (1.2, p, FINGER_CLOSED, 'lower second'), (1.5, p, FINGER_CLOSED, 'hold'),
                 (.7, p, FINGER_OPEN, 'release'), (1., (*p[:2], HOVER), FINGER_OPEN, 'retreat'),
-                (.8, (*p[:2], HOVER), FINGER_OPEN, 'settle')):
+                (1.5, (*p[:2], HOVER), FINGER_OPEN, 'settle')):
                 add(side, duration, pos, grip, f'{i} {where} {label}')
         pick(x, y, TABLE_Z, 'start')
         for gauge, (gx, gy, gap) in GAPS.items():

@@ -140,7 +140,7 @@ def test_grasp_dimensions_from_real_box_bounds(audit, index, width):
     size = (high - low) * 1000
     assert size[1] == pytest.approx(width)
     assert size[1] < 85
-    assert size[2] == pytest.approx(25)
+    assert size[2] == pytest.approx(40)
     assert size[2] >= 15
     assert obj.mass == pytest.approx(2700 * np.prod(obj.size))
 
@@ -176,14 +176,15 @@ def test_only_allowed_waypoints_and_release_intent(audit):
                 support = audit.FLOOR_TOP if target == "tray" else (
                     audit.BASE_TOP if width < audit.GAPS[target][2] else audit.ANVIL_TOP
                 )
-                assert point.pos[2] - audit.GRIP_Z - support == pytest.approx(0.004)
+                assert point.pos[2] - audit.GRIP_Z - support == pytest.approx(0.001)
+                assert 0 <= point.pos[2] - audit.GRIP_Z - support < .002
 
 
 @pytest.mark.parametrize("side", ["left", "right"])
 def test_real_armplan_replayed_at_20_hz(audit, recorded, side):
     plan = ArmPlan(audit.plans()[side], station.BASES[side])
     count = math.ceil(plan.duration * 20) + 1
-    assert count == recorded["arms"][side]["frames"] == 1981
+    assert count == recorded["arms"][side]["frames"] == 2925
     for step in range(count):
         action, _ = plan.action7(step / 20)
         assert np.all(action[:6] >= ik.LOWER)
@@ -196,8 +197,10 @@ def test_real_armplan_replayed_at_20_hz(audit, recorded, side):
 
 def test_actual_finger_mesh_clears_expanded_fixed_structures(audit):
     plan = ArmPlan(audit.plans()["left"], station.BASES["left"])
-    for step in range(321):
+    for step in range(1000):
         action, label = plan.action7(step / 20)
+        if label == '1 go close':
+            break
     assert label == "1 go close"
     finger = min(action[6] * FINGER_OPEN, -audit.WIDTHS[0] / 2)
     joints = dict(zip(ARM_JOINTS, action[:6])) | {"joint7": finger, "joint8": finger}
@@ -222,7 +225,7 @@ def test_recorded_candidate_passes(audit, recorded):
     assert audit.gate_failures(recorded) == []
     assert recorded["arms"]["left"]["collision_count"] == 0
     assert recorded["arms"]["right"]["collision_count"] == 0
-    assert all(a['min_aabb_clearance_m'] >= .001 for a in recorded['arms'].values())
+    assert all(a['min_aabb_clearance_m'] >= .003 for a in recorded['arms'].values())
 
 
 def test_validator_accepts_clean_synthetic_input(audit, clean):
@@ -419,7 +422,7 @@ def test_no_go_before_go_and_short_dwell_do_not_count(task):
     assert task._checks['block_2']['go'] == 'seated'
 
 
-@pytest.mark.parametrize('event', ['tip', 'impact', 'off_table', 'fixed_moved', 'wrong_tray', 'untested_tray'])
+@pytest.mark.parametrize('event', ['impact', 'off_table'])
 def test_irreversible_events_stay_zero_after_slow_restoration(task, event):
     objects = initial(task); tick(task, objects)
     if event == 'tip':
@@ -458,7 +461,7 @@ def test_jump_direct_to_final_state_and_wrong_start_fail_closed(task):
     for name in task.BLOCKS:
         tray_pose(task, objects, name)
     tick(task, objects, 30)
-    assert task._failed == 'invalid initial layout'
+    assert not task._started and task._invalid['scene'] == 'invalid initial layout'
     assert task.score(objects) == 0 and not task.success(objects)
 
 
@@ -555,22 +558,22 @@ def test_fifteen_degree_tilt_threshold_and_final_state_recheck(task):
     objects = initial(task); tick(task, objects)
     name = 'block_1'
     r = axis_angle_matrix(np.array((1., 0., 0.)), math.radians(14.99))
-    put(task, objects, name, task.SPECS[name].pos, r); task.success(objects)
+    put(task, objects, name, np.array(task.SPECS[name].pos)+(0, 0, .05), r); task.success(objects)
     assert not task._failed
     r = axis_angle_matrix(np.array((1., 0., 0.)), math.radians(15.01))
-    put(task, objects, name, task.SPECS[name].pos, r); task.success(objects)
-    assert task._failed == 'block tipped'
+    put(task, objects, name, np.array(task.SPECS[name].pos)+(0, 0, .05), r); task.success(objects)
+    assert not task._failed and 'block tipped' in task._invalid[name]
 
 
 def test_public_reader_with_fake_public_physics_api(monkeypatch):
     module = load(os.environ.get('GAUGE_TASK_SOURCE', HERE/'task.py')).module
     class View:
         count = 1
-        shared_metatype = SimpleNamespace(dof_names=['joint7', 'joint8'], link_names=['gripper'])
+        shared_metatype = SimpleNamespace(dof_names=['joint7', 'joint8'], link_names=['gripper', 'tip_left', 'tip_right'])
         def get_dof_positions(self):
             return np.array([[-.04695, -.04695]])
         def get_link_transforms(self):
-            return np.array([[[.2, .1, 1., 0., 0., 0., 1.]]])
+            return np.array([[[.2, .1, 1., 0., 0., 0., 1.]]*3])
     paths = []
     def create(path):
         paths.append(path); return View()
@@ -602,7 +605,7 @@ def test_position_window_threshold(task, offset, still):
 def test_initial_layout_radius_boundary(task, offset, valid):
     objects = initial(task); p = objects['block_1'].pos.copy(); p[0] += offset
     put(task, objects, 'block_1', p); task.success(objects)
-    assert (not task._failed) == valid
+    assert task._started == valid
 
 
 @pytest.mark.parametrize('missing', [True, False])
@@ -614,7 +617,7 @@ def test_missing_or_changed_object_fails_closed(task, missing):
         old = objects['block_1']
         objects['block_1'] = ObjectState(old.pos, old.quat_xyzw, old.lin_vel, old.ang_vel, old.low, old.high+.01)
     assert not task.success(objects) and task.score(objects) == 0
-    assert task._failed
+    assert task._invalid and not task._failed
 
 
 def test_debug_output_does_not_change_scores(task, monkeypatch):
@@ -651,12 +654,12 @@ def test_full_demo_logic_20_hz_with_ideal_settling_and_interarm_clearance(task, 
         half = np.asarray(size)/2 if kind == 'box' else np.array((size[0], size[0], size[1]/2+size[0]))
         vertices = (corners*half)@quat_xyzw_to_matrix(np.array(quat)).T+pos
         fixtures.append((name, vertices.min(axis=0), vertices.max(axis=0)))
-    flow = np.array([f[1] for f in fixtures])-.001
-    fhigh = np.array([f[2] for f in fixtures])+.001
+    flow = np.array([f[1] for f in fixtures])-.003
+    fhigh = np.array([f[2] for f in fixtures])+.003
     hold = 0
     minimum = float('inf')
     completion = None
-    for step in range(1, 2021):
+    for step in range(1, round(max(p.duration for p in plans.values())*20)+41):
         sensor.clear()
         link_boxes = []
         for side, plan in plans.items():
@@ -738,7 +741,7 @@ def test_fixed_structure_displacement_threshold(task, offset, valid):
     obj = task.SPECS['gauge_base']
     objects[obj.name] = state(obj, np.array(obj.pos)+(offset, 0., 0.))
     task.success(objects)
-    assert (not task._failed) == valid
+    assert (not task._invalid) == valid
 
 
 @pytest.mark.parametrize('speed,spin,still', [(.009999, 0., True), (.010001, 0., False),
@@ -765,7 +768,7 @@ def test_work_envelope_boundaries(task, axis, value, valid):
     objects = initial(task); tick(task, objects)
     p = objects['block_1'].pos.copy(); p[axis] = value
     put(task, objects, 'block_1', p); task.success(objects)
-    assert (not task._failed) == valid
+    assert (not task._invalid) == valid
 
 
 @pytest.mark.parametrize('separation,valid', [(.079999, False), (.080001, True)])
@@ -778,3 +781,143 @@ def test_nearby_gripper_distance_boundary(task, monkeypatch, separation, valid):
     monkeypatch.setattr(task, 'read_grippers', lambda: (grips, 'boundary'))
     task.success(objects)
     assert task._released('block_1', objects) == valid
+
+
+def test_all_object_numeric_parameters_are_native_float(task):
+    for obj in task.OBJECTS:
+        for key in ('pos', 'size', 'color', 'mass', 'yaw'):
+            value = getattr(obj, key)
+            for v in value if isinstance(value, (tuple, list)) else (value,):
+                if v is not None:
+                    assert type(v) is float, (obj.name, key, type(v))
+
+
+@pytest.mark.parametrize('event', ['tip', 'fixed_moved', 'wrong_tray', 'untested_tray', 'work_bounds', 'malformed'])
+def test_repair_requires_reinspection_then_can_score(task, event):
+    objects = initial(task); tick(task, objects); inspect_block(task, objects, 'block_1')
+    if event == 'tip':
+        r = axis_angle_matrix(np.array((1., 0., 0.)), math.radians(25))
+        put(task, objects, 'block_1', (.3, .2, task.TABLE_Z+.1), r)
+    elif event == 'fixed_moved':
+        obj=task.SPECS['gauge_base']; objects[obj.name]=state(obj,np.array(obj.pos)+(0,0,.003))
+    elif event == 'wrong_tray':
+        tray_pose(task, objects, 'block_1', 'green')
+    elif event == 'untested_tray':
+        task._clear_checks('block_1'); tray_pose(task, objects, 'block_1')
+    elif event == 'work_bounds':
+        put(task, objects, 'block_1', (.56, .2, task.TABLE_Z+.1))
+    else:
+        obj=objects['block_1']; objects['block_1']=ObjectState(obj.pos,obj.quat_xyzw,obj.lin_vel,obj.ang_vel,obj.low,obj.high+.01)
+    tick(task, objects, 20)
+    assert not task._failed and task._invalid
+    assert task._checks['block_1']=={'go':None,'no_go':None}
+    obj=task.SPECS['gauge_base']; objects[obj.name]=state(obj)
+    tray_pose(task, objects, 'block_1'); tick(task, objects, 20)
+    assert task.score(objects)==0  # uprighting/restoring alone cannot recycle credit
+    finish_block(task, objects, 'block_1')
+    assert not task._failed and not task._invalid and task.score(objects)==.25
+
+
+def test_wrong_start_can_be_restored_before_episode_begins(task):
+    objects=initial(task); tray_pose(task,objects,'block_1'); tick(task,objects)
+    assert not task._started and task.score(objects)==0
+    objects=initial(task); tick(task,objects)
+    finish_block(task,objects,'block_1')
+    assert task.score(objects)==.25
+
+
+def test_tilted_final_block_never_scores_even_below_reset_threshold(task):
+    objects=initial(task); tick(task,objects); finish_block(task,objects,'block_1')
+    r=axis_angle_matrix(np.array((1.,0.,0.)),math.radians(2.))
+    put(task,objects,'block_1',objects['block_1'].pos+(0,0,.001),r)
+    task.success(objects)
+    assert task.score(objects)==0 and not task._failed
+
+
+def test_two_stage_placement_and_pick_holds(task):
+    for points in task.demo().values():
+        for i,p in enumerate(points):
+            if p.label.endswith('lower second'):
+                align,first=points[i-1],points[i-2]
+                assert align.label.endswith('align') and align.duration>=1.5
+                assert first.label.endswith('lower first') and first.pos==align.pos
+                where=p.label.split()[1]
+                support=task.ANVIL_TOP if where in task.GAPS else task.FLOOR_TOP
+                assert first.pos[2]-task.GRIP_Z-support==pytest.approx(.010)
+            if p.label.endswith('release'):
+                assert points[i-1].label.endswith('hold') and points[i-1].duration>=1.5
+                assert points[i-1].pos==p.pos
+            if p.label.endswith('close'):
+                assert points[i-1].label.endswith('align') and points[i-1].duration>=1.5
+
+
+@pytest.mark.parametrize('name,gauge,error_mm,accepted', [
+    ('block_3','go',.499,True),('block_3','go',.501,False),
+    ('block_2','no_go',-.499,True),('block_2','no_go',-.501,False),
+    ('block_1','go',2.5,True),('block_1','go',2.501,False),
+    ('block_1','no_go',.5,True),('block_1','no_go',.501,False),
+    ('block_2','go',0.,True),('block_2','go',.001,False)])
+def test_actual_alignment_acceptance(task,name,gauge,error_mm,accepted):
+    objects=initial(task); gauge_pose(task,objects,name,gauge)
+    put(task,objects,name,objects[name].pos+(0,error_mm/1000,0))
+    assert task.alignment(name,gauge,objects)['accepted']==accepted
+
+
+def test_alignment_uses_rotated_full_block_not_nominal_width(task):
+    objects=initial(task); r=axis_angle_matrix(np.array((0.,0.,1.)),math.radians(2))
+    gauge_pose(task,objects,'block_2','go',rotation=r)
+    assert not task.alignment('block_2','go',objects)['accepted']
+
+
+def test_debug_every_critical_step_and_second_descent_measurement(task,monkeypatch,capsys):
+    monkeypatch.setenv('TASK_DEBUG','1'); objects=initial(task); task.success(objects)
+    row=next(r for r in task.demo_timeline() if r['label']=='1 go lower second')
+    for k in range(row['start_step']-20,row['end_step']+21):
+        assert task.debug_due(k)
+    task._step=row['start_step']-1
+    gauge_pose(task,objects,'block_1','go',extra=.021)
+    task.success(objects)
+    records=[json.loads(line.split(' ',1)[1]) for line in capsys.readouterr().out.splitlines()]
+    record=records[-1]
+    assert record['action_step']==row['start_step']
+    assert len(record['second_descent_alignment'])==1
+    assert record['second_descent_alignment'][0]['accepted']
+    assert record['fixture_clearance'][0]['reason']=='missing public gripper/finger link poses'
+    assert set(('pos_m','quat_xyzw','bottom_corners_m','target_support_gap_mm','released','still')).issubset(record['contact']['block_1'])
+
+
+def test_gjk_distances_witnesses_intersection_and_nonconvergence(task):
+    geom=task.collision_geometry(); box=geom.CORNERS*.01
+    for shift,expected in [((.03,0,0),.01),((.03,.03,0),math.sqrt(2)*.01),((0,0,0),0.)]:
+        result=geom.convex_distance(box,box+shift)
+        assert result['converged'] and result['distance_m']==pytest.approx(expected,abs=1e-9)
+        assert np.linalg.norm(np.array(result['witness_a_m'])-result['witness_b_m'])==pytest.approx(expected,abs=1e-9)
+    r=axis_angle_matrix(np.array((0.,0.,1.)),math.pi/4)
+    rotated=box@r.T+(.04,0,0)
+    result=geom.convex_distance(box,rotated)
+    assert result['distance_m']==pytest.approx(.04-.01-math.sqrt(2)*.01,abs=1e-9)
+    result=geom.convex_distance(box,rotated,max_iterations=1)
+    assert not result['converged'] and result['distance_m'] is None
+
+
+def test_public_pose_mesh_clearance_matches_cpu_geometry(task):
+    geom=task.collision_geometry(); points=task.demo()['left']; plan=ArmPlan(points,station.BASES['left'])
+    row=next(r for r in task.demo_timeline() if r['label']=='1 go hold')
+    for k in range(row['start_step']+1): action,_=plan.action7(k/20)
+    fk=forward_kinematics(YAM_URDF,dict(zip(ARM_JOINTS,action[:6]))|{'joint7':-.0125,'joint8':-.0125})
+    poses={n:np.r_[fk[n][:3,3]+station.BASES['left'],ik.matrix_to_quat_xyzw(fk[n][:3,:3])].tolist()
+           for n in ('gripper','tip_left','tip_right')}
+    result=geom.measured_clearance({'link_poses_m_xyzw':poses},initial(task),task.SPECS,task.ANVIL_TOP)
+    assert result['reason']=='ok' and result['minimum']['converged']
+    assert result['minimum']['lower_m']>=.003 and result['tip_above_anvil_mm']>=3
+
+
+def test_release_drop_below_two_mm(task):
+    for points in task.demo().values():
+        for p in points:
+            if p.label.endswith('release'):
+                number, where = p.label.split()[:2]
+                width = task.WIDTHS[int(number)-1]
+                support = task.FLOOR_TOP if where == 'tray' else (task.BASE_TOP if width < task.GAPS[where][2] else task.ANVIL_TOP)
+                drop = p.pos[2]-task.GRIP_Z-support
+                assert 0 <= drop < .002, (p.label, drop)

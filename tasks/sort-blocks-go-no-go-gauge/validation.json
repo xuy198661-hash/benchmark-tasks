@@ -1,180 +1,186 @@
 {
-  "status": "cpu_feasibility_passed_gpu_pending",
-  "authorised_geometry_repairs": 1,
+  "status": "revised_cpu_passed_gpu_pending",
+  "previous_task_commit": "1fe82d891159a6dc135adaa74cae67c68883a9bb",
   "environment": {
-    "os": "macOS 26.6 arm64",
-    "python": "3.12.14",
-    "numpy": "2.3.5",
+    "python": "3.12.16",
+    "numpy": "2.5.4",
     "pytest": "9.2.0",
-    "framework": "real local yam_arena",
+    "platform": "macOS-26.6-arm64-arm-64bit",
     "framework_git_commit": "bd62771e60320433893bd1d2df0fc79b5ddcd6d1",
     "isaac_sim": false,
     "gpu": false
   },
-  "initial_report_commit": "256967228a1a4c78ff3993f9ad32eeec5b9dca8f",
-  "original_failed_candidate": {
-    "left_worst_ik_mm": 83.42989506018749,
-    "left_worst_ik_deg": 9.37859749413938,
-    "left_expanded_collision_witnesses": 212,
-    "actual_floor_intersection": true
-  },
-  "gate_audit_script": "gauge_preflight_round1.py",
-  "gate_audit_script_sha256": "44005b1fdb8b78407d009752b52c199b11ca413cae1c59cc742e5f6dd67a2fbe",
-  "original_gate_regressions": {
-    "passed": 18,
+  "gate_audit_script": "audit.py",
+  "final_suite": {
+    "passed": 105,
     "failed": 0,
     "skipped": 0,
-    "seconds": 6.76
+    "seconds": 35.12,
+    "python_environment": "yam_env",
+    "full_20hz_fixture_and_interarm_replay": true
   },
-  "full_suite_before_additional_fixed_structure_replay": {
-    "passed": 84,
-    "failed": 0,
-    "errors": 0,
-    "skipped": 0,
-    "seconds": 23.11,
-    "external_audit_required": false
+  "negative_release_test": {
+    "mutation": "RELEASE_GAP 0.001 -> 0.004 in task.py",
+    "result": "1 failed, 104 deselected in 0.10s",
+    "failure": "('1 go release', 0.0040000000000000036); expected 0 <= drop < 0.002",
+    "restored": true,
+    "full_suite_reran_after_restore": true
   },
-  "mutation_results": [
-    {
-      "category": "feasibility",
-      "log_name": "gauge-round1-mutation-ignore_clearance.log",
-      "summary": "1 failed, 3 passed, 14 deselected in 0.47s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "feasibility",
-      "log_name": "gauge-round1-mutation-ignore_dimensions.log",
-      "summary": "2 failed, 16 deselected in 0.46s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "feasibility",
-      "log_name": "gauge-round1-mutation-ignore_finger_intersection.log",
-      "summary": "1 failed, 17 deselected in 0.93s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "feasibility",
-      "log_name": "gauge-round1-mutation-ignore_ik.log",
-      "summary": "2 failed, 2 passed, 14 deselected in 0.47s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-add_score_tiers.log",
-      "summary": "1 failed, 83 deselected in 0.48s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-debug_every_step.log",
-      "summary": "1 failed, 83 deselected in 0.31s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-forget_failure_latch.log",
-      "summary": "6 failed, 78 deselected in 0.58s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-ignore_gripper_release.log",
-      "summary": "2 failed, 82 deselected in 0.36s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-omit_com_support.log",
-      "summary": "1 failed, 83 deselected in 0.16s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-positive_gap_tolerance.log",
-      "summary": "3 failed, 81 deselected in 0.55s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-score_mutates_state.log",
-      "summary": "1 failed, 83 deselected in 0.36s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-slow_reset_erases_history.log",
-      "summary": "6 failed, 78 deselected in 1.41s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-velocity_only_rest.log",
-      "summary": "1 failed, 83 deselected in 0.25s",
-      "exit_code": 1,
-      "caught": true
-    },
-    {
-      "category": "task",
-      "log_name": "gauge-task-mutant-yaw_as_tilt.log",
-      "summary": "1 failed, 83 deselected in 0.24s",
-      "exit_code": 1,
-      "caught": true
-    }
-  ],
   "idealised_replay": {
     "control_hz": 20,
-    "completion_step_after_20_success_frames": 1905,
-    "nominal_plan_intervals": 1980,
-    "run_limit": 2600,
-    "interarm_link_aabb_clearance_m": 0.03252976269843541,
+    "completion_step_after_20_success_frames": 2826,
+    "nominal_plan_intervals": 2924,
+    "run_limit": 3000,
+    "interarm_link_aabb_clearance_m": 0.03254922151584625,
     "physics_simulated": false,
-    "support_assignment": "analytic idealised settling; physical contacts not simulated"
+    "support_assignment": "analytic idealised settling, not PhysX"
+  },
+  "previous_gpu_demo": {
+    "commit": "1fe82d891159a6dc135adaa74cae67c68883a9bb",
+    "json_status": "success",
+    "score": 0.0,
+    "steps": 2041,
+    "termination": "policy_stop",
+    "framework_seconds": 276.441,
+    "first_reported_tip_step": 220
   },
   "unverified": [
-    "GPU public gripper reader",
-    "PhysX support separation sign and penetration",
-    "friction and off-centre grasp torque",
-    "centering and drops",
-    "physical full-score demo and robustness",
-    "live private board changes since snapshot"
+    "new public tip_left/tip_right pose reads and debug overhead on GPU",
+    "heavier-block grip, slip, torque and lateral convergence",
+    "actual second-descent blocked error <0.5 mm and passing side clearances >=1 mm",
+    "30 mm GO bar has zero spare error tolerance at the requested 1 mm side clearance",
+    "actual released bottom-corner gaps <2 mm and finger/fixture gap >=3 mm",
+    "PhysX support separation, penetration and final settling",
+    "physical handoffs and full-score demo",
+    "actual demo run_limit ratio",
+    "Dream-1 and media",
+    "live private task-board changes"
   ],
+  "previous_cpu_record": {
+    "initial_failed_candidate": {
+      "left_worst_ik_mm": 83.42989506018749,
+      "left_worst_ik_deg": 9.37859749413938,
+      "left_expanded_collision_witnesses": 212,
+      "actual_floor_intersection": true
+    },
+    "prior_repaired_suite": {
+      "passed": 84,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 26.09,
+      "external_audit_required": false,
+      "full_replay_fixed_collision_check": true
+    },
+    "prior_mutation_results_apply_only_to_previous_source": [
+      {
+        "category": "feasibility",
+        "log_name": "gauge-round1-mutation-ignore_clearance.log",
+        "summary": "1 failed, 3 passed, 14 deselected in 0.47s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "feasibility",
+        "log_name": "gauge-round1-mutation-ignore_dimensions.log",
+        "summary": "2 failed, 16 deselected in 0.46s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "feasibility",
+        "log_name": "gauge-round1-mutation-ignore_finger_intersection.log",
+        "summary": "1 failed, 17 deselected in 0.93s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "feasibility",
+        "log_name": "gauge-round1-mutation-ignore_ik.log",
+        "summary": "2 failed, 2 passed, 14 deselected in 0.47s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-add_score_tiers.log",
+        "summary": "1 failed, 83 deselected in 0.48s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-debug_every_step.log",
+        "summary": "1 failed, 83 deselected in 0.31s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-forget_failure_latch.log",
+        "summary": "6 failed, 78 deselected in 0.58s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-ignore_gripper_release.log",
+        "summary": "2 failed, 82 deselected in 0.36s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-omit_com_support.log",
+        "summary": "1 failed, 83 deselected in 0.16s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-positive_gap_tolerance.log",
+        "summary": "3 failed, 81 deselected in 0.55s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-score_mutates_state.log",
+        "summary": "1 failed, 83 deselected in 0.36s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-slow_reset_erases_history.log",
+        "summary": "6 failed, 78 deselected in 1.41s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-velocity_only_rest.log",
+        "summary": "1 failed, 83 deselected in 0.25s",
+        "exit_code": 1,
+        "caught": true
+      },
+      {
+        "category": "task",
+        "log_name": "gauge-task-mutant-yaw_as_tilt.log",
+        "summary": "1 failed, 83 deselected in 0.24s",
+        "exit_code": 1,
+        "caught": true
+      }
+    ]
+  },
   "artifacts_sha256": {
-    "task.py": "7bed0a454cdf5073b5c249c2d67aadfb296b1ec5de45fad920be4bdbbe38a8cd",
-    "task.json": "b953b4d47fb3fa07890ed272794e771be881fba73dcee1de27d0d560843dce92",
-    "geometry.json": "6458a52e59a737c7853923ebbb385a46bc9c8851e83cea3dda48ae69a1076f66",
-    "test_task.py": "bcab9276ffbae7c1bcd3f3afc56c607122be6c38d14f86123d63210a62aab268",
-    "preflight.json": "1075268db413e42175bfb63aa772bb4f275399c4cffec647681a35e0ec07b03d"
-  },
-  "final_suite": {
-    "passed": 84,
-    "failed": 0,
-    "errors": 0,
-    "skipped": 0,
-    "seconds": 26.09,
-    "external_audit_required": false,
-    "full_replay_fixed_collision_check": true
-  },
-  "additional_verification": {
-    "standalone_suite_before_full_fixture_replay": "84 passed in 23.11s",
-    "full_fixture_replay_before_broadphase_optimisation": "84 passed in 76.93s",
-    "optimised_full_fixture_replay": "84 passed in 26.09s"
-  },
-  "operational_notes": [
-    "Read-only process-list diagnostic was denied by the sandbox; session polling supplied completion instead.",
-    "An empty patch request was rejected by verification and changed no file.",
-    "No assertion failures occurred on correct code in this repair round; all expected mutation failures were inspected."
-  ]
+    "task.py": "0dc69953497c1ff84383e4fd35b23d096b8b69a955facba25d237b0a65f7e31d",
+    "task.json": "b20e43a17927c5225d8940af5e31c0cf0c9ec2ed8cdec6cf1969c20c411f94ad",
+    "geometry.json": "c0579d613ffe5e71d65e1e8b2d0186f20f32c74b62d442cfdb4dfa06e5d03f31",
+    "test_task.py": "58c1a2c112342502ed350f57c814b70422e6a93acf0922f29ba7afcb608467ae",
+    "collision_geometry.py": "1c88aad886efa8c5dc83681e6ddc9dfba477e000fd6fa1a671b120569756b814",
+    "audit.py": "13204c2ee7d49d97f5abb6371995c78c63b9fc1d6854e3139120945d2f49a7d3",
+    "preflight.json": "16a589d63f819155fd80f90b3fc5bce4cfbe8637c521f8c9bffd761f34b8744e",
+    "README.md": "08af2cae17c634b3e2368e604094b55f5482fcbd1c7d9aa374d6d1aca243f77b"
+  }
 }
