@@ -1,5 +1,6 @@
 {
-  "status": "feasibility_failed_implementation_stopped",
+  "status": "cpu_feasibility_passed_gpu_pending",
+  "authorised_geometry_repairs": 1,
   "environment": {
     "os": "macOS 26.6 arm64",
     "python": "3.12.14",
@@ -10,57 +11,170 @@
     "isaac_sim": false,
     "gpu": false
   },
-  "audit_script_name": "gauge_preflight.py",
-  "audit_script_sha256": "4953b6d5bbf53d7d95ffacd27cdbb9493c3fb7a7d9747ae24d08591b219f7a52",
-  "preflight_sha256": "82dd94686ce5e52311b3caebcb1de8b239bda770d3259da6c2c08b340c814de3",
-  "baseline": {
+  "initial_report_commit": "256967228a1a4c78ff3993f9ad32eeec5b9dca8f",
+  "original_failed_candidate": {
+    "left_worst_ik_mm": 83.42989506018749,
+    "left_worst_ik_deg": 9.37859749413938,
+    "left_expanded_collision_witnesses": 212,
+    "actual_floor_intersection": true
+  },
+  "gate_audit_script": "gauge_preflight_round1.py",
+  "gate_audit_script_sha256": "44005b1fdb8b78407d009752b52c199b11ca413cae1c59cc742e5f6dd67a2fbe",
+  "original_gate_regressions": {
     "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 6.76
+  },
+  "full_suite_before_additional_fixed_structure_replay": {
+    "passed": 84,
     "failed": 0,
     "errors": 0,
     "skipped": 0,
-    "seconds": 10.63
-  },
-  "initial_test_attempt": {
-    "passed": 7,
-    "errors": 11,
-    "reason": "Evidence copy was sandbox-denied; tests started before preflight.json existed. Copy retried with approved write access, then all tests rerun successfully."
+    "seconds": 23.11,
+    "external_audit_required": false
   },
   "mutation_results": [
     {
-      "mutation": "ignore_ik",
-      "pytest_exit_code": 1,
-      "summary": "2 failed, 2 passed, 14 deselected in 0.10s",
+      "category": "feasibility",
+      "log_name": "gauge-round1-mutation-ignore_clearance.log",
+      "summary": "1 failed, 3 passed, 14 deselected in 0.47s",
+      "exit_code": 1,
       "caught": true
     },
     {
-      "mutation": "ignore_clearance",
-      "pytest_exit_code": 1,
-      "summary": "1 failed, 3 passed, 14 deselected in 0.10s",
+      "category": "feasibility",
+      "log_name": "gauge-round1-mutation-ignore_dimensions.log",
+      "summary": "2 failed, 16 deselected in 0.46s",
+      "exit_code": 1,
       "caught": true
     },
     {
-      "mutation": "ignore_finger_intersection",
-      "pytest_exit_code": 1,
-      "summary": "1 failed, 17 deselected in 3.15s",
+      "category": "feasibility",
+      "log_name": "gauge-round1-mutation-ignore_finger_intersection.log",
+      "summary": "1 failed, 17 deselected in 0.93s",
+      "exit_code": 1,
       "caught": true
     },
     {
-      "mutation": "ignore_dimensions",
-      "pytest_exit_code": 1,
-      "summary": "2 failed, 16 deselected in 0.10s",
+      "category": "feasibility",
+      "log_name": "gauge-round1-mutation-ignore_ik.log",
+      "summary": "2 failed, 2 passed, 14 deselected in 0.47s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-add_score_tiers.log",
+      "summary": "1 failed, 83 deselected in 0.48s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-debug_every_step.log",
+      "summary": "1 failed, 83 deselected in 0.31s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-forget_failure_latch.log",
+      "summary": "6 failed, 78 deselected in 0.58s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-ignore_gripper_release.log",
+      "summary": "2 failed, 82 deselected in 0.36s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-omit_com_support.log",
+      "summary": "1 failed, 83 deselected in 0.16s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-positive_gap_tolerance.log",
+      "summary": "3 failed, 81 deselected in 0.55s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-score_mutates_state.log",
+      "summary": "1 failed, 83 deselected in 0.36s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-slow_reset_erases_history.log",
+      "summary": "6 failed, 78 deselected in 1.41s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-velocity_only_rest.log",
+      "summary": "1 failed, 83 deselected in 0.25s",
+      "exit_code": 1,
+      "caught": true
+    },
+    {
+      "category": "task",
+      "log_name": "gauge-task-mutant-yaw_as_tilt.log",
+      "summary": "1 failed, 83 deselected in 0.24s",
+      "exit_code": 1,
       "caught": true
     }
   ],
-  "not_implemented_due_to_gate": [
-    "task.py",
-    "task.json",
-    "scorer and task-scoring tests",
-    "GPU gripper reader",
-    "full-score demo",
-    "TASK_DEBUG runtime",
-    "GPU smoke",
-    "GPU full demo",
-    "run_limit validation",
-    "real-world support and release verification"
+  "idealised_replay": {
+    "control_hz": 20,
+    "completion_step_after_20_success_frames": 1905,
+    "nominal_plan_intervals": 1980,
+    "run_limit": 2600,
+    "interarm_link_aabb_clearance_m": 0.03252976269843541,
+    "physics_simulated": false,
+    "support_assignment": "analytic idealised settling; physical contacts not simulated"
+  },
+  "unverified": [
+    "GPU public gripper reader",
+    "PhysX support separation sign and penetration",
+    "friction and off-centre grasp torque",
+    "centering and drops",
+    "physical full-score demo and robustness",
+    "live private board changes since snapshot"
+  ],
+  "artifacts_sha256": {
+    "task.py": "7bed0a454cdf5073b5c249c2d67aadfb296b1ec5de45fad920be4bdbbe38a8cd",
+    "task.json": "b953b4d47fb3fa07890ed272794e771be881fba73dcee1de27d0d560843dce92",
+    "geometry.json": "6458a52e59a737c7853923ebbb385a46bc9c8851e83cea3dda48ae69a1076f66",
+    "test_task.py": "bcab9276ffbae7c1bcd3f3afc56c607122be6c38d14f86123d63210a62aab268",
+    "preflight.json": "1075268db413e42175bfb63aa772bb4f275399c4cffec647681a35e0ec07b03d"
+  },
+  "final_suite": {
+    "passed": 84,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 26.09,
+    "external_audit_required": false,
+    "full_replay_fixed_collision_check": true
+  },
+  "additional_verification": {
+    "standalone_suite_before_full_fixture_replay": "84 passed in 23.11s",
+    "full_fixture_replay_before_broadphase_optimisation": "84 passed in 76.93s",
+    "optimised_full_fixture_replay": "84 passed in 26.09s"
+  },
+  "operational_notes": [
+    "Read-only process-list diagnostic was denied by the sandbox; session polling supplied completion instead.",
+    "An empty patch request was rejected by verification and changed no file.",
+    "No assertion failures occurred on correct code in this repair round; all expected mutation failures were inspected."
   ]
 }

@@ -1,225 +1,345 @@
-# Sort blocks with a GO / NO-GO gauge — feasibility stopped
+# Sort aluminium parts with a GO / NO-GO gap gauge
 
-**Status: the candidate layout failed feasibility gate 3. No runnable task, scorer,
-or full-score demo has been implemented.** The requested stop condition applies.
-This is a preflight report, not a submission. Category: Impact on jobs.
+The single authorised layout repair passes CPU feasibility. The task, end-state
+scorer, gripper reader, and nominal demo are implemented. **GPU physics and
+full-score execution remain pending.** `scores` is `pending` and `media` is `{}`.
 
-本想法源自他队已失效占位的 PR #1849，本预检从头编写。由于可行性门槛未通过，
-尚未实现或修复该 PR 最后一次评审指出的支撑评分问题。
+本想法源自他队已失效占位的 PR #1849，本实现从头编写，并修复了该 PR 最后一次评审指出的问题。
 
-The requested provenance sentence's claim that the scoring problem is fixed
-cannot truthfully be made at this stop point.
+That correction is verified on adversarial ObjectState sequences: unsupported
+positive-gap poses, held parts, and tilted midair poses cannot earn inspection
+credit. It is not a claim that the new scorer already reached 1.0 in GPU physics.
+No prior task implementation was read or copied.
 
-## Feasibility results
+## Instruction and physical setup
 
-Measured on macOS 26.6, Apple Silicon, Python 3.12.14, NumPy 2.3.5, using the real
-`yam_arena` package and its URDF collision meshes. No Isaac Sim, GPU, or rigid-body
-simulation was used. `preflight.json` records the complete numerical result.
+“Gauge every aluminium block before putting acceptable parts in the green tray
+and rejects in the red tray. Accept a part only if it enters the GO gap and stays
+out of the NO-GO gap. Keep unchecked parts out of the finished trays, and leave
+all parts settled and released.”
 
-| Gate | Evidence | Result |
+The task uses `SCENE = "station"`, with `TABLE_Z = TABLE_TOP[SCENE]`, 0.7475 m.
+World x points forward, y left, z up. `geometry.json` is the authoritative numeric
+setup. Every shape is a real Box primitive, not a substitute for an appliance.
+
+| Movable aluminium bar | Length × width × height | Uniform-density mass | Start xy, m | Correct tray |
+| --- | --- | --- | --- | --- |
+| Block 1 | 90 × 25 × 25 mm | 151.875 g | (0.32, +0.24) | Red |
+| Block 2 | 90 × 30 × 25 mm | 182.250 g | (0.32, −0.24) | Green |
+| Block 3 | 90 × 35 × 25 mm | 212.625 g | (0.32, −0.36) | Red |
+
+Bars are silver, flat, and long edges along x. Density is 2,700 kg/m³. The bars
+use common 25 mm high rectangular aluminium stock, machined to width. Their
+bottoms spawn 1 mm above the table and settle. Names identify reproducible parts;
+there are no visual labels or third-party models.
+
+Fixed dark steel gauge: 120 × 190 × 6 mm base centred at (0.225, 0), bottom on
+the table. Each gap has two 18 × 24 × 10 mm anvils. GO width 32 mm at y = +40 mm;
+NO-GO width 28 mm at y = −40 mm. Their tops are 17 mm above the table. The fixed
+anvils have a 1 mm assembly gap above the base, representing rigid mount spacers
+not included in collision geometry. Gauge gaps run along x. Acceptable width is
+28 < w < 32 mm; exact equality would be rejected, although no bar is at a limit.
+
+Green and red fixed painted-steel trays are centred at (0.145, +0.25) and
+(0.145, −0.25). Each has a 140 × 220 × 3 mm floor. Walls are 3 mm thick, 10 mm
+high, from 4 to 14 mm above the table; their horizontal centres and lengths are
+in `geometry.json`. Robot/table/camera geometry comes from the station framework.
+Nothing is consumed; no object jitter is permitted.
+
+## Arm ownership, grasp and handoff
+
+The left arm handles +y starting parts and the green tray; the right handles −y
+starting parts and the red tray. Both can reach the shared gauge. Block 1 goes
+left-to-right at the NO-GO gap; block 2 goes right-to-left there. The source arm
+releases, rises, and parks before the receiver approaches. Block 3 stays on the
+right. No arm reaches over the midline to the opposite tray. This starting
+layout deliberately cannot be sorted correctly by keeping every part on its
+starting side.
+
+URDF measurement uses **all collision-mesh vertices** of both fingers, including
+mesh scales, collision origins and joint transforms, in open, closed and
+width-limited states. TCP to lowest fingertip is **12.842499535 mm**. The TCP
+stands **17.842499535 mm above the bar bottom**, leaving a nominal 5 mm tip
+clearance and 20 mm of vertical bar face above the tip. Width, 25–35 mm, is the
+closing direction. The grasp is 33 mm toward the near x end so the short anvils
+do not obstruct the finger approach. Block height is increased from 20 to 25 mm.
+
+Release TCP = intended support top + measured grasp offset + 4 mm. The bar's
+bottom therefore has a 4 mm settling drop. Hover is 110 mm above the table.
+The 99 s plan uses only downward Waypoints, translation, yaw=0, opening and
+closing. READY-to-down startup interpolation is the framework's normal motion.
+
+## Scoring and actual geometric support
+
+`SCORE_OVER = "end"`. `success()` alone advances history. `score()` and
+`distance()` are read-only, including arrays and debug counters. The distance
+hook reports the count of unfinished valid placements, not a Euclidean metre
+measurement; use `--scorer task_score`.
+
+A valid check requires release, stillness, and a contact certificate on every
+step of a 0.3 s dwell. Seven 20 Hz samples span six intervals = 0.3 s. Every bar
+needs GO first; a GO passer then needs NO-GO. A blocked GO bar needs no NO-GO.
+First valid readings latch. Checks alone do not earn a placement tier.
+
+**Support is not a positive proximity tolerance.** The scorer reconstructs the
+real bottom polygon from position, quaternion and the known box dimensions.
+It clips that polygon against the designated horizontal support rectangles.
+A seated bar must fit inside the proper gap and contact the base. A blocked bar
+must have a nonzero bottom contact patch on **both** anvils. All vertices of
+each required contact patch must have nonpositive signed separation, allowing
+only 0.5 nanometres for floating-point roundoff. Penetration up to 0.2 mm is
+accepted for the solver; a positive air gap is not. The uniform bar's centre of
+mass projection must lie at least 1 mm inside the combined convex support hull.
+Wrong-lane, one-anvil, rotated-across-the-gap, and midair tilted readings fail.
+This geometric certificate establishes no-gap support under the rigid-box model;
+it does not measure load-bearing contact force.
+
+Both grippers are read through a **function-local delayed import** of the public
+`isaaclab.sim.SimulationContext`, its `physics_sim_view`, and articulation views.
+Only joint positions and gripper transforms are read. No embodiment method is
+wrapped or patched; no private yam_arena attribute is read. Every gripper within
+80 mm of the bar AABB must have pad gap ≥ projected gripped width + 5 mm. A
+missing/invalid reader gives no inspection or placement credit and a debug reason.
+
+Rest uses ten positions spanning 0.45 s at 20 Hz (a conventional 0.5 s sample
+window); all pair distances must be ≤ 2 mm. The current queried position is
+also checked. Before ten samples exist, explicit speed < 10 mm/s and spin <
+0.5 rad/s are used. Once full, position history overrides stale sleeping velocities.
+The separate seven-sample released/support dwell must also hold.
+
+At the final frame, a credited bar needs all required readings, release, rest,
+its entire footprint ≥ 1 mm inside the correct tray, and floor contact by the
+same certificate. Rim placements, unsupported stacks and held bars do not count.
+
+| Highest satisfied final tier | Score |
+| --- | ---: |
+| No correctly placed, inspected bar | 0 |
+| One | 0.25 |
+| Two | 0.50 |
+| All three | 0.75 |
+| All three continuously successful for 1.0 s, awarded by framework | 1.0 |
+
+Tiers never add. Tipping >15°, an impact speed >0.8 m/s, leaving the working
+bounds, changed/missing geometry, moving a fixed structure, and a released,
+settled wrong or unchecked tray placement invalidate the whole episode. The
+failure remains after repair. Final geometry and placement are rechecked.
+
+An in-process reset requires a >0.10 m **single-step** position jump of a bar
+and the entire scene back at nominal poses. Slowly returning everything cannot
+clear history. A true reset clears checks, dwell and position windows, and
+restarts debug cadence at step 1. A wrong initial layout fails closed. Starting
+a new task process also starts a new episode.
+
+**Real trials:** use continuous video to judge gripper release, order and dwell.
+Use a side/top photo per reading to confirm there is **no visible gap** between
+the bar bottom and the base or both anvil tops. A tape/caliper verifies fixture
+sizes and final tray margins. A held bar, a 0.3 mm hover, and an unsupported
+slanted pose are invalid. Record the final result only after the arms release.
+
+## Thresholds — 开发估计 / development estimates
+
+These are engineering estimates, not GPU-calibrated measurements.
+
+| Quantity | Value | Physical basis |
 | --- | --- | --- |
-| Grasp dimensions | Actual `Box` dimensions: block 1: 90 × 25 × 20 mm; block 2: 90 × 30 × 20 mm; block 3: 90 × 35 × 20 mm. Grip closes across width. Widths are all below 85 mm; heights are all at least 15 mm. | Pass |
-| Allowed motion primitives | Candidate uses only real `Waypoint(duration, pos, finger, label, yaw)` calls. All waypoint orientations point down, with zero yaw. No tilting, scooping, or flipping. Initial READY-to-down interpolation is the framework's normal startup transition. | Pass |
-| Reach and clearance | Both real `ArmPlan` instances sampled with `action7(t)` at 20 Hz, including t = 0 and the final endpoint: 1,921 frames per arm. Real URDF joint limits and collision meshes were checked. | **Fail** |
+| Grasp width / face height | <85 mm / ≥15 mm; actual 25–35 / 25 mm | Margin below 94 mm nominal jaw opening; usable opposing faces |
+| Tip clearance above bar bottom | 5 mm nominal, ≥3 mm required | Measured d plus tracking margin; no floor/anvil scraping |
+| Release clearance | 4 mm | Short settling drop, within requested 3–5 mm |
+| Robot/finger–fixture clearance | ≥1 mm | Expanded real collision geometry, all interpolated frames |
+| IK errors | <0.5 mm / <0.1° | Precise placement and conservative clearance validity |
+| GO / NO-GO | 32 / 28 mm | Coarse physical discrimination resolvable by rigid contacts |
+| Gauge centre / long-axis yaw | ≤2 mm / ≤2° modulo 180° | Correct gauge lane and width presentation |
+| Gauge/tray upright test | ≤0.5° | Reject tilted false readings; contact patches further constrain tilt |
+| Positive contact roundoff | ≤0.0000005 mm | Floating-point arithmetic only, never a physical support band |
+| Maximum penetration | 0.2 mm | Solver interpenetration allowance, one-sided toward the solid |
+| Contact patch area | ≥1 mm² per support | Avoid degenerate point/line support |
+| COM / tray boundary margin | ≥1 / ≥1 mm | Stable support hull and full placement inside walls |
+| Gripper proximity / gap margin | ≤80 mm / ≥5 mm extra opening | Includes offset grasp and nearby fingers; release must be observable |
+| Rest | 10 samples; pairwise ≤2 mm | Avoid frozen velocity and residual solver noise |
+| Initial fallback speed / spin | <10 mm/s / <0.5 rad/s | Explicit thresholds before position window fills |
+| Inspection dwell / success hold | ≥0.3 / 1.0 s | Inspect after release; maintain final outcome |
+| Tip / impact latch | >15° / >0.8 m/s | Knocked-over or flung parts cannot recover credit |
+| Work bounds | x 0.03–0.55 m; abs(y) ≤0.57 m; bottom ≥table−2 mm | Detect ejection/off-table outcomes |
+| Initial position / fixed position tolerance | ≤4 / ≤0.5 mm | Reproducible layout and fixed gauge geometry |
+| Initial upright / x-axis alignment | ≤1° / ≤2° modulo 180° | Flat stock at known pick poses |
+| Fixed orientation matrix deviation | ≤0.001 per entry | Fixed structure should not move or rotate |
+| Shape extent / AABB-centre tolerance | 0.5 / 0.5 mm | Reject changed geometry or inconsistent states |
+| Reset jump | >100 mm in one sample plus full nominal layout | Episode reset distinct from slow restoration |
+| Run limit | 2,600 steps / 130 s | 1.31 times nominal 1,980-step path, not an excessive limit |
 
-The candidate has a 96.0 s trajectory (1,920 control intervals). Left-arm worst IK
-error is **83.429895 mm / 9.378597 degrees**. At frame 700 (35.0 s), the desired
-TCP is `(0.087, -0.290, 0.8675)` m; actual FK gives
-`(0.075848, -0.213731, 0.835576)` m. The target is the end of the red-tray retreat,
-at the start of the segment labelled `1 park`. It requires the left arm to reach
-across to the far side of the red tray. The q values remain within joint limits;
-being inside joint limits does not establish target reachability.
+## CPU validation and reproduction
 
-There are **212 mesh/fixture/frame pairs** intersecting fixed geometry expanded
-by 1 mm on the left arm. These are repeated collision witnesses, not 212 separate
-impacts. The first is frame 636 (31.8 s), `1 tray lower`, a left finger pad against
-the red tray floor. The list is truncated to the first 30 in the evidence file.
-An independent check at frame 650 (32.5 s), `1 tray release`, with **unexpanded**
-geometry confirms real intersection with the floor:
-
-| Collision mesh | Lowest vertex below floor top | Exact mesh/box intersection |
-| --- | ---: | --- |
-| `tip_left_014.stl` | 6.469021 mm | Yes |
-| `tip_left_015.stl` | 6.364068 mm | Yes |
-| `tip_right_008.stl` | 2.615365 mm | Yes |
-
-These heights describe vertices, not a minimum penetration depth. The same
-left-finger geometry also intersects the table in the recorded failing segment.
-The right arm's sampled result is 0.082819 mm / 0.012637 degrees worst IK error,
-all joints within limits, zero expanded-fixture intersections, and a conservative
-AABB clearance lower bound of 5.179388 mm. Both arms' shape declarations bind to
-the real constructor signatures. No task-object spawn overlap was found.
-
-## Candidate geometry and audit method
-
-The gauge base is a fixed 120 × 240 × 6 mm slab centred at `(0.24, 0)` m. The GO
-and NO-GO gaps are centred at y = +65 and -65 mm, with widths 32 and 28 mm.
-Each anvil is 18 × 24 × 10 mm. Anvil tops are 17 mm above the table; base top is
-6 mm above it. The anvils have a 1 mm assembly gap above the base in this
-candidate; their fastening and that gap were not physically validated.
-
-The green and red tray floors are 140 × 220 × 3 mm, centred at `(0.12, +0.25)`
-and `(0.12, -0.25)` m. Their 3 mm thick walls are fixed. Block start centres in
-the tabletop plane are `(0.33, +0.19)`, `(0.33, +0.29)`, `(0.33, -0.24)` m.
-Blocks spawn 1 mm above the table, with no interpenetration. Mass uses uniform
-aluminium density 2,700 kg/m³. The primitive geometry needs no third-party asset.
-
-To keep fingers outside the short anvils, the candidate grasps 33 mm toward the
-near end of each block. The TCP is 18 mm above the block bottom. A release target
-adds 4 mm to the intended supported height. These are intended geometry values;
-the failed IK shows that the left arm does not achieve them at the red tray.
-
-The audit reads every robot URDF collision mesh, applies collision origins,
-mesh scales, joint FK, and the station base positions. AABB broad phase is
-followed by convex separating-axis checks against the fixed boxes. The table
-and camera stand are included; capsules are conservatively bounded as boxes.
-The mounted robot base is excluded from table contact checks. During grasping,
-finger positions are clamped to the assumed block width rather than the
-impossible fully-closed command. This is an explicit kinematic assumption.
-
-## Thresholds — development estimates
-
-All tolerances below are **开发估计 / development estimates**, not GPU-calibrated
-acceptance thresholds. No scoring thresholds were implemented.
-
-| Quantity | Candidate value | Physical basis / limitation |
-| --- | --- | --- |
-| Maximum grasp width | Strictly < 85 mm | Margin below the YAM nominal 94 mm opening |
-| Minimum block height | ≥ 15 mm; actual 20 mm | Vertical opposing faces for a downward parallel grasp |
-| IK position / rotation error | ≤ 0.5 mm / 0.1 degree | Framework demo-test accuracy; large errors invalidate placement and clearance |
-| Fixed-structure clearance | 1 mm expansion on all fixed faces | Detects contact and close approaches in nominal kinematics; tracking error is unmodelled |
-| Spawn vertical gap | 1 mm | Avoids initial interpenetration |
-| Intended release clearance | 4 mm | Short settling drop within the requested 3–5 mm range |
-| Gauge inspection dwell | ≥ 0.3 s | Requirement only; no scorer or dwell test implemented |
-| Position rest window | 10 frames / 0.5 s; ≤ 2 mm from every sample | Requirement only; no scorer implemented |
-| Full-score hold | 1.0 s | Requirement only; no success implementation |
-
-## Reproduction and tests
-
-The original build/audit script is kept **outside this repository**, in the
-requested reference tools directory. It does not contain or import PR #1849's
-code. Set `GAUGE_PREFLIGHT_SCRIPT` to that script's absolute path and make the real
-`yam_arena` package importable in a Python 3.12 environment with NumPy and pytest.
-From this checkout:
+Environment: macOS 26.6 arm64; Python 3.12.14, NumPy 2.3.5, pytest 9.2.0; real
+`yam_arena` at commit `bd62771e60320433893bd1d2df0fc79b5ddcd6d1`.
+No Isaac Sim, GPU, package installation, or replacement framework was used.
+The external original audit is `gauge_preflight_round1.py`, stored in the
+requested reference tools directory. Set `GAUGE_PREFLIGHT_SCRIPT` to its path
+only to regenerate the external audit or test its deliberate mutants. The
+committed tests also run without that variable: they use the real package,
+committed geometry, and test-only URDF collision readers. With the real package
+and pytest importable, from the checkout root:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python "$GAUGE_PREFLIGHT_SCRIPT" /tmp/gauge-preflight.json
 PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tasks/sort-blocks-go-no-go-gauge/test_task.py -q
 ```
 
-The audit writes numerical results even for an infeasible candidate. The tests
-verify that this result is **rejected**, using real constructors, real ArmPlan
-replay, and real collision geometry. Passing these regression tests does not
-mean the task passed feasibility. Final result: **18 passed, 0 failed, 0 skipped**
-in 10.63 s, with pytest 9.2.0. No tests were skipped. All four deliberate incorrect
-implementations were caught: ignoring IK errors (2 failures), ignoring fixed
-clearance (1 failure), returning false for actual finger/fixture intersection
-(1 failure), and ignoring grasp dimensions (2 failures). Mutants were separate
-external copies; the original audit script was preserved. See `validation.json`
-for exact results, script/evidence hashes, and framework revision.
+Each real ArmPlan was sampled at 20 Hz with `action7(t)`: 1,981 frames per arm,
+including endpoints. Every declared shape/waypoint binds to its real signature.
+Initial geometry has no overlap. The complete task demo matches the audited
+plan exactly; physical trajectories were not silently changed after the gate.
 
-An initial run had 7 passes and 11 fixture errors because the evidence copy was
-sandbox-denied and the tests started before the file existed. After copying the
-evidence with approved write access, the complete test run passed as above.
+| Result | Left | Right |
+| --- | ---: | ---: |
+| Worst IK position | 0.092057 mm | 0.091828 mm |
+| Worst IK rotation | 0.012565° | 0.013348° |
+| All joint limits | Pass | Pass |
+| Fixed structures expanded by 1 mm: intersections | 0 | 0 |
+| Conservative robot/finger–fixture AABB gap | 5.016082 mm | 5.013383 mm |
 
-No task-scoring tests were run: there is no scorer. The requested tier, event
-latch, replay reset, tilt/yaw, held-block, invalid-start, support-hover, debug,
-and full-score tests therefore remain unimplemented. There is no `task.py` or
-`task.json`; placeholder task metadata would misrepresent the gate outcome.
+Real collision meshes, collision origins/scales, station base positions, table
+and camera stand are checked. The mounted bases are excluded from table contact
+by design. Camera stand capsules have conservative box bounds. Finger closure
+is clamped at the held bar's width; this is kinematics, not a force simulation.
+Inter-arm whole-link AABB clearance in the complete replay is at least
+32.529763 mm. This bound includes the fingers and gripper bodies.
 
-## GPU handoff — blocked by feasibility
+Final standalone suite: **84 passed, 0 failed, 0 skipped**, in 26.09 s, including
+every interpolated frame's robot/finger–fixture clearance. The original 18 feasibility
+regressions are retained with the repaired dimensions and expected passing
+outcome. Added tests cover all tiers; contact support/COM; 0.3 mm hover; clamped
+bars at gap height, either arm; midair slants; threshold boundaries; yaw 180°;
+irreversible events after slow repair; invalid starts; direct terminal jumps;
+held final placements; real reset; read-only hooks; debug; missing/changed shapes;
+frozen velocities; public reader shape contracts; and full plan logic.
 
-Do not execute a GPU demo for this candidate. There is no runnable task file.
-After a replacement layout passes the CPU gate and the task is implemented,
-the required command sequence would be:
+The full demo is also replayed through real IK at 20 Hz with an **explicit ideal
+settling model**: a released bar is assigned its analytic support pose. In this
+model, framework-style 20-step success hold completes at step **1,905**. This
+checks sequencing, release, handoffs, scoring and runtime; it does not establish
+that frictional grasps and drops work in PhysX.
+
+Four audit mutants and ten task mutants were tested in isolated external copies;
+all 14 caused test failures. They deliberately: ignore IK, ignore fixture
+clearance, misreport finger intersection, ignore grasp dimensions, accept a
+positive 0.5 mm support gap, ignore release, omit COM support, erase failure
+latches, allow slow reset, mutate score state, add score tiers, use velocity-only
+rest, print every debug step, and treat yaw as tilt. Exact counts, hashes and
+validation provenance are in `validation.json`.
+
+## GPU handoff: 200-step smoke, then full demo
+
+Run on the configured GPU environment with real Isaac Lab/Arena and yam_arena.
+From this checkout, first:
 
 ```bash
 TASK_DEBUG=1 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=tasks/sort-blocks-go-no-go-gauge/task.py -E object_jitter=0 \
   -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "Gauge the aluminium blocks and separate the acceptable parts into the green tray and the rejects into the red tray. Keep untested parts out of the finished trays." \
-  --scorer task_score --max-steps 200 --seed 0 --no-prompt \
-  --store-frames --log-dir /tmp/gauge-smoke
+  --instruction "Gauge every aluminium block before putting acceptable parts in the green tray and rejects in the red tray. Accept a part only if it enters the GO gap and stays out of the NO-GO gap. Keep unchecked parts out of the finished trays, and leave all parts settled and released." \
+  --scorer task_score --max-steps 200 --seed 0 --no-prompt --store-frames \
+  --log-dir /tmp/gauge-smoke
+```
 
-# Only after the smoke succeeds; set GAUGE_RUN_LIMIT to the validated full-demo limit.
+Expect task_progress exactly at steps **1,20,40,...,200**. `gripper` must read
+`ok`; both `pad_gaps_mm` must be finite and within 0–94.1 mm (nominal maximum
+93.9 mm, 0.2 mm sensor allowance). At an open pose expect about **93.9 mm**; holding block
+1 expect about **25 mm**. A nearby released block 1 requires ≥**30 mm**, block 2
+≥**35 mm**, block 3 ≥**40 mm**. `failed` must be empty. At step 200 the first
+GO check is not yet complete, so `credited=0` is expected; zero smoke score is
+not a failed full demo. Confirm fingers stay ≥3 mm above the block bottom and
+≥1 mm clear of fixed structures on the recorded views.
+
+`tcp_m` reports both TCPs. `contact` reports each bar's minimum/maximum bottom
+separation from base and anvil top, in mm, plus its instantaneous gauge readings.
+For a credited supported pose, the relevant signed gap range must be inside
+**[−0.2, +0.0000005] mm**. A +0.3 mm range must yield no reading. These raw ranges
+are diagnostic; footprint clipping and COM checks are still required by scoring.
+
+The exact public-reader path is GPU-unverified. If it reports unavailable, stop
+automatic scoring and retain fail-closed zero credit. Use the allowed fallback:
+object-state geometry plus **human video judgment of release** to evaluate the
+trial, and record that as external manual judgment. Do not claim automatic 1.0
+from poses alone. Implementing an automatic bypass is deliberately avoided.
+
+Only after successful smoke:
+
+```bash
 TASK_DEBUG=1 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=tasks/sort-blocks-go-no-go-gauge/task.py -E object_jitter=0 \
   -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "Gauge the aluminium blocks and separate the acceptable parts into the green tray and the rejects into the red tray. Keep untested parts out of the finished trays." \
-  --scorer task_score --max-steps "$GAUGE_RUN_LIMIT" --seed 0 --no-prompt \
-  --store-frames --log-dir /tmp/gauge-full-demo
+  --instruction "Gauge every aluminium block before putting acceptable parts in the green tray and rejects in the red tray. Accept a part only if it enters the GO gap and stays out of the NO-GO gap. Keep unchecked parts out of the finished trays, and leave all parts settled and released." \
+  --scorer task_score --max-steps 2600 --seed 0 --no-prompt --store-frames \
+  --log-dir /tmp/gauge-full-demo
 ```
 
-Smoke acceptance values to instrument in a future implementation: both arms'
-gripper readings available on all 200 steps; finite TCP positions and pad gaps
-in `[0, 93.9]` mm; open gap at least block width + 5 mm near any credited part;
-zero credits when readings are unavailable; no nonzero unsupported check at a
-0.3 mm vertical gap; task_progress lines exactly at steps 1, 20, ..., 200; zero
-scoring before a valid released, supported dwell. Physics contact and actual
-robot tracking must be inspected in logs/video. No such smoke diagnostics exist
-yet. A 200-step smoke would end before this candidate's first failure at step
-636, so it cannot establish full-demo feasibility. No run_limit is claimed;
-1,920 intervals is only this failed nominal trajectory's duration.
+The final result must be 1.0 from continuous success within 2,600 steps, with no
+failure latch. Inspect gauge photos: no positive gaps; both anvils must support
+a blocked bar. A rigid-body positive gap, even 0.01 mm, intentionally fails.
+Do not weaken that rule to obtain a score. This strictness may expose numeric
+separation or imperfect seating that requires a new approved physical revision.
+No GPU command, Dream-1 run, media upload or PR was executed in this work.
 
-The permitted delayed public-API gripper reader is unimplemented and unverified
-on GPU. If it cannot read both arms, checks must fail closed with a debug reason.
-The requested object-state-plus-video fallback would require explicit external
-human judgment of release; it cannot be presented as an automatically verified
-1.0. In real trials, video must show release and a photo must show no visible
-gap between the block bottom and its gauge support. These remain requirements,
-not verified behavior of this report.
+## Prior work, limitations and complete failure record
 
-## Closest prior PRs and review risk
+Snapshot source: `pr-crawl/snapshot-20261119T072321Z`, completed November 19 at
+07:34:28 UTC. PR #1849 task.json and README only were read. Its last recorded
+review was November 17 at 22:32:26 UTC; the head fetched on November 20 remained
+`8369fe24691b5693350900b66e8d5f0dd35fdf07`, committed before that review. Its
+48-hour hold had expired under the stated rule. The live task board required
+sign-in; later private board changes were not verified.
 
-Source: `pr-crawl` snapshot `snapshot-20261119T072321Z`, completed
-2026-11-19 07:34:28 UTC. Only PR #1849's task.json and README were fetched and
-read; its implementation code was not read or copied.
+| Closest PR | Distinction and relevant history |
+| --- | --- |
+| [#1849](https://github.com/robocurve/benchmark-tasks/pull/1849) | Same authorised block-inspection idea; importance passed. Its documented 0.5 mm support band was repeatedly rejected. This implementation uses geometric contact patches on every required support, COM containment, explicit release and adversarial tests. Three 90 mm bars, side-owned trays and two gauge handoffs replace its documented seven 50 mm bars. Physical full-score verification remains pending here. |
+| [#658](https://github.com/robocurve/benchmark-tasks/pull/658) | Two-limit lot release/hold task rejected for repeating earlier inspection capability, fixed distinguishable layouts, and hidden-kind demo decisions. This task follows #1849's separately accepted importance framing and requires each individual bar's real reading before any placement credit. It has no lot decision. Known-layout and scripted-routing limitations still apply. |
+| [#48](https://github.com/robocurve/benchmark-tasks/pull/48) | Pin-and-gauge-plate task rejected for repeating earlier inspection capability. This task is the #1849 rectangular-part two-gap inspection idea, whose importance was accepted. That history reduces the duplicate concern; it does not guarantee acceptance of this implementation. |
 
-| PR | Snapshot finding | Difference / risk for this candidate |
-| --- | --- | --- |
-| [#1849](https://github.com/robocurve/benchmark-tasks/pull/1849) | Same GO / NO-GO block-sorting idea. Latest recorded rejection: support cannot be established by the documented 0.5 mm proximity test. | Candidate has three 90 mm long blocks and grasps across width at an overhanging end; prior documentation uses seven 50 mm long blocks gripped along length. The required support/release fix is unimplemented. There is no demonstrated scoring improvement. |
-| [#658](https://github.com/robocurve/benchmark-tasks/pull/658) | Two-limit lot inspection, rejected as a duplicate; fixed distinguishable layouts and a demo using hidden block kinds were also criticised. | Candidate omits the lot-release decision. Its preflight uses known widths to choose target support heights and routes; this is unsuitable evidence of a perception-based demo. Randomized assignments and observable decisions remain unresolved. |
-| [#48](https://github.com/robocurve/benchmark-tasks/pull/48) | Pin-and-gauge-plate fit inspection, finally rejected as duplicating an earlier inspection capability. | Candidate uses rectangular widths and two gaps instead of cylindrical pins and pockets. That alone does not establish a distinct core capability. |
+All remaining assumptions and problems:
 
-The snapshot's last #1849 review is 2026-11-17 22:32:26 UTC, so its documented
-48-hour hold expired at 2026-11-19 22:32:26 UTC if no revision arrived. A fresh
-fetch on 2026-11-20 still returned head `8369fe24691b5693350900b66e8d5f0dd35fdf07`,
-committed 2026-11-17 19:53:28 UTC, matching the snapshot. The live task board
-redirected to sign-in; current private board ownership was not verified.
+- The first layout failed: left arm crossed to the red tray, with 83.429895 mm /
+  9.378597° worst IK error, 212 expanded-mesh/fixture/frame collision witnesses,
+  and confirmed unexpanded finger/floor intersection. This single repair addresses
+  ownership and measured fingertip clearance; there was no second geometry repair.
+- GPU release reads, real frictional grasps, off-centre grasp torque, dropped-bar
+  centring, solver penetration sign, contact-force magnitude, and final physics
+  success are unverified. CPU rest poses are synthetic, explicitly so.
+- Support is a conservative rigid-geometry/COM certificate. It can reject real
+  support when PhysX reports a small positive gap or an edge-supported tilted
+  rest. Tilted/wedged gauge readings and stacked tray placements are not credited.
+- The static demo uses known manufactured widths for release heights and routing.
+  It is an open-loop mechanical demonstration, not a perception-driven policy.
+  The scorer still requires actual inspections. Starts are fixed and visibly
+  distinguishable; no randomized width assignment has been implemented. A reviewer
+  could raise the memorized-layout concern that appeared in #1849's first review.
+- Aluminium blocks are exact boxes; gauge chamfers, burrs, wear, compliance, fine
+  manufacturing tolerances and mounting spacers are omitted. Shared framework
+  friction is rubber-like, not calibrated aluminium/steel friction.
+- Rest and dwell assume exactly 20 Hz; using the framework's default 10 Hz is
+  unsupported. Object jitter must be zero. No run-to-run robustness claim is made.
+- The initial report's first test attempt had 11 fixture errors because a sandbox
+  denied the evidence copy. After approved copying it had 18 passes. The current
+  repaired suite has no failures or skips. Existing system Python 3.9 lacked
+  dependencies; bundled Python 3.12 and external existing pytest were used.
+- Read-only public physics views are tested with an API-shaped fake and with no
+  simulator, not with a GPU. API/version/path differences fail closed. No private
+  API or hidden embodiment access was introduced to hide that limitation.
+- No third-party model, texture or image is redistributed. There is no assets/
+  directory, so image metadata stripping, licensing and asset path scans are
+  inapplicable. All geometry is original primitive design; the robot's existing
+  framework meshes are read for tests only, not copied into the task.
+- Initial Git/DNS sandbox restrictions in the first session were overcome by
+  approved retries. No secrets or authentication files were opened. Changes stay
+  within this task directory; the requested external audit and Git excludes are
+  the only ancillary writes.
+- In this round a read-only process-list diagnostic was sandbox-denied; ordinary
+  session polling still established test completion. An empty patch request was
+  rejected without changing any file. No correct-code assertion failed in this
+  repair round. A full collision replay passed in 76.93 s; adding per-hull AABB
+  pruning preserved the checks and reduced the final suite to 26.09 s.
 
-Likely rejection reasons, if submitted now: failed physical feasibility; no
-full-score demo or calibrated contact/release scorer; possible duplication;
-fixed, recognizable width assignments; preflight routing based on hidden widths;
-no GPU results or required media. No PR, media upload, or Dream-1 run was made.
-
-## Remaining failures, assumptions, and operational limits
-
-- Gate 3 fails for the tested candidate. No repair was attempted after this
-  failure, following the explicit stop instruction.
-- Collision tests use nominal kinematics, the real decomposed URDF meshes, and
-  assumed width-limited finger positions. They do not simulate finger friction,
-  actuator compliance, off-centre grasp torque, block settling, or tracking error.
-- Inter-arm collisions, contact forces, achieved grasp alignment, upper-reach
-  safety margin, release heights under physics, and the final score remain
-  unverified. The right arm's isolated pass is not a whole-task pass.
-- A 1 mm assembly gap below fixed anvils, coarse 28/32 mm limits, and one shared
-  material/friction model have not been validated as a faithful physical gauge.
-- No actual-support proof exists. Tightening a pose tolerance alone must not be
-  called a verified support fix. The restricted ObjectState interface and allowed
-  gripper reads have not yet been reconciled with the contact requirement.
-- The system Python was 3.9 without NumPy, pytest, or yam_arena. Tests instead used
-  bundled Python 3.12.14, NumPy 2.3.5, pytest 9.2.0, the real local framework, and
-  an existing external pytest dependency directory. No package was installed.
-- Initial sandbox Git-fetch and DNS attempts were blocked; approved retries
-  succeeded. A broad initial file search encountered protected macOS directories;
-  framework discovery was completed with targeted project paths. No credential,
-  environment secret, or authentication file was opened.
-- No assets directory or third-party model/texture was created. The asset metadata
-  and image-stripping checks are inapplicable. Robot mesh use is through the
-  existing framework installation; no mesh is redistributed.
-- All repository changes are confined to this task folder. The external audit
-  script and local Git exclude entries are the explicitly requested exceptions.
-
-Nothing is consumed. For a future trial, the blocks must be reset to a validated
-starting layout and the inspection history reset only by the specified episode
-jump mechanism. That reset mechanism is not implemented here.
+Likely reasons for rejection now: no GPU full-score evidence/media; conservative
+support rule may not match solver contacts; unverified gripper reader; fixed
+recognizable assignments and known-width demo; coarse geometry/friction. PR
+#1849's accepted importance is the relevant precedent, rather than a claim that
+#48/#658 already disqualify this idea.

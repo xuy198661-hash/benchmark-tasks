@@ -9,311 +9,128 @@
     {
       "name": "block_1",
       "width": 25.0,
-      "height": 20.0
+      "height": 25.0
     },
     {
       "name": "block_2",
       "width": 30.0,
-      "height": 20.0
+      "height": 25.0
     },
     {
       "name": "block_3",
       "width": 35.0,
-      "height": 20.0
+      "height": 25.0
     }
   ],
+  "tip_measurement": {
+    "source": "all URDF tip_left/tip_right collision-mesh vertices, gripper frame",
+    "states": [
+      {
+        "finger_m": -0.04695,
+        "d_m": 0.012842499534989393
+      },
+      {
+        "finger_m": 0.0,
+        "d_m": 0.012842499534988894
+      },
+      {
+        "finger_m": -0.0125,
+        "d_m": 0.01284249953498906
+      },
+      {
+        "finger_m": -0.015,
+        "d_m": 0.01284249953498906
+      },
+      {
+        "finger_m": -0.0175,
+        "d_m": 0.01284249953498906
+      }
+    ],
+    "d_m": 0.012842499534989393,
+    "minimum_tip_above_bottom_m": 0.005
+  },
+  "grip_z_m": 0.017842499534989394,
   "overlaps": [],
-  "duration_s": 96.0,
+  "duration_s": 99.0,
   "arms": {
     "left": {
-      "frames": 1921,
-      "worst_ik_mm": 83.42989506018749,
-      "worst_ik_deg": 9.37859749413938,
-      "joint_limits": true,
-      "collisions": [
-        {
-          "step": 636,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 636,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 637,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 638,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 639,
-          "label": "1 tray lower",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_left",
-          "mesh": "tip_left_014.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_left",
-          "mesh": "tip_left_015.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_right",
-          "mesh": "tip_right_005.stl",
-          "fixture": "table"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "red_floor"
-        },
-        {
-          "step": 640,
-          "label": "1 tray hold",
-          "link": "tip_right",
-          "mesh": "tip_right_008.stl",
-          "fixture": "table"
-        }
-      ],
-      "collision_count": 212,
-      "worst_pose": {
-        "step": 700,
-        "time_s": 35.0,
-        "label": "1 park",
-        "target_tcp": [
-          0.087,
-          -0.29,
-          0.8675
-        ],
-        "actual_tcp": [
-          0.07584797064741383,
-          -0.2137306469412777,
-          0.8355756297622503
-        ],
-        "position_error_mm": 83.42989506018749,
-        "q_rad": [
-          -1.4256152618940705,
-          2.5708716105807343,
-          2.6110576338994074,
-          -1.447295476839875,
-          3.28926620632627e-06,
-          -1.4256069921174923
-        ]
-      },
-      "min_aabb_clearance_m": 0.0,
-      "closest": [
-        636,
-        "1 tray lower",
-        "tip_left",
-        "tip_left_014.stl",
-        "red_floor"
-      ]
-    },
-    "right": {
-      "frames": 1921,
-      "worst_ik_mm": 0.0828187489504337,
-      "worst_ik_deg": 0.012636520692440496,
+      "frames": 1981,
+      "worst_ik_mm": 0.09205736955684374,
+      "worst_ik_deg": 0.012565079190478024,
       "joint_limits": true,
       "collisions": [],
       "collision_count": 0,
       "worst_pose": {
-        "step": 1426,
-        "time_s": 71.3,
-        "label": "3 start approach",
+        "step": 1368,
+        "time_s": 68.4,
+        "label": "2 tray lower",
         "target_tcp": [
-          0.12048799999999951,
-          -0.3833600000000004,
-          0.8675
+          0.11199999999999999,
+          0.25,
+          0.8558244473288135
         ],
         "actual_tcp": [
-          0.12044067832167259,
-          -0.38342796243972954,
-          0.8674991569554557
+          0.11199319955931643,
+          0.2499993852729921,
+          0.8559162511163548
         ],
-        "position_error_mm": 0.0828187489504337,
+        "position_error_mm": 0.09205736955684374,
         "q_rad": [
-          -0.5774157122455935,
-          1.06476624353091,
-          0.8907818681298858,
-          -1.3968079593547416,
-          -0.0001717416431110231,
-          -0.5774750195213932
+          -0.4565332918955141,
+          0.980745720046749,
+          0.8066445245643011,
+          -1.396813406971988,
+          -9.644346086430105e-06,
+          -0.4565262816822929
         ]
       },
-      "min_aabb_clearance_m": 0.0051793884029314174,
+      "min_aabb_clearance_m": 0.005016082133284305,
       "closest": [
-        1480,
-        "3 start descend",
+        320,
+        "1 go close",
+        "tip_right",
+        "tip_right_008.stl",
+        "gauge_base"
+      ]
+    },
+    "right": {
+      "frames": 1981,
+      "worst_ik_mm": 0.09182768610024909,
+      "worst_ik_deg": 0.013347954812059661,
+      "joint_limits": true,
+      "collisions": [],
+      "collision_count": 0,
+      "worst_pose": {
+        "step": 648,
+        "time_s": 32.4,
+        "label": "1 tray lower",
+        "target_tcp": [
+          0.11199999999999999,
+          -0.29,
+          0.8558244473288136
+        ],
+        "actual_tcp": [
+          0.11199174348894239,
+          -0.2899945026789199,
+          0.8559157377084854
+        ],
+        "position_error_mm": 0.09182768610024909,
+        "q_rad": [
+          0.1331932696829821,
+          0.9290737576513065,
+          0.7863147756999829,
+          -1.428148255629163,
+          8.275073610056352e-06,
+          0.13320696067604212
+        ]
+      },
+      "min_aabb_clearance_m": 0.0050133834203750505,
+      "closest": [
+        1040,
+        "2 go close",
         "tip_left",
         "tip_left_015.stl",
-        "table"
+        "gauge_base"
       ]
     }
   }
