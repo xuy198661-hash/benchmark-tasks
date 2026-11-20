@@ -60,16 +60,17 @@ if AssetRegistry is not None:
 
 GIFT_SIZE = np.array(D["gift_size_m"])
 OBJECTS = [
-    Asset("base", BaseAsset.registry_name, xy=tuple(D["base_xy_m"]),
-          extent=INFO["base"]["extent_m"], mass=INFO["base"]["mass_kg"],
-          color=(.52, .13, .20), yaw=D["base_yaw_rad"], convex=False),
-    Asset("lid", LidAsset.registry_name, xy=tuple(D["lid_xy_m"]),
-          extent=INFO["lid"]["extent_m"], mass=INFO["lid"]["mass_kg"],
-          color=(.88, .75, .60), yaw=D["lid_yaw_rad"], convex=False),
-    Box("gift", pos=(*D["base_xy_m"], TABLE_Z + D["spawn_gap_m"]
-                     + INFO["base"]["panel_high_m"] + D["spawn_gap_m"] + GIFT_SIZE[2]/2),
-        size=tuple(GIFT_SIZE), color=(.60, .39, .17),
-        mass=float(np.prod(GIFT_SIZE) * D["gift_density_kg_m3"])),
+    Asset("base", BaseAsset.registry_name, xy=tuple(float(v) for v in D["base_xy_m"]),
+          extent=float(INFO["base"]["extent_m"]), mass=float(INFO["base"]["mass_kg"]),
+          color=(.52, .13, .20), yaw=float(D["base_yaw_rad"]), convex=False),
+    Asset("lid", LidAsset.registry_name, xy=tuple(float(v) for v in D["lid_xy_m"]),
+          extent=float(INFO["lid"]["extent_m"]), mass=float(INFO["lid"]["mass_kg"]),
+          color=(.88, .75, .60), yaw=float(D["lid_yaw_rad"]), convex=False),
+    Box("gift", pos=(*(float(v) for v in D["base_xy_m"]),
+                     float(TABLE_Z + D["spawn_gap_m"] + INFO["base"]["panel_high_m"]
+                           + D["spawn_gap_m"] + GIFT_SIZE[2]/2)),
+        size=tuple(float(v) for v in GIFT_SIZE), color=(.60, .39, .17),
+        mass=float(np.prod(GIFT_SIZE) * D["gift_density_kg_m3"]), yaw=float(0)),
 ]
 SIZES = {"base": np.array(INFO["base"]["size_m"]),
          "lid": np.array(INFO["lid"]["size_m"]), "gift": GIFT_SIZE}

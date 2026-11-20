@@ -106,6 +106,26 @@ def test_real_task_loader_and_constructor_signatures():
     assert not any(n.startswith(('isaacsim','omni.isaac')) for n in sys.modules)
 
 
+def test_object_numeric_parameters_are_native_floats():
+    # NumPy float64 values silently make reset poses torch.float64, which Warp
+    # rejects. isinstance(v, float) also accepts np.float64, so check exact types.
+    vectors = ("pos", "size", "xy", "color")
+    scalars = ("radius", "height", "extent", "mass", "yaw")
+    for obj in module().OBJECTS:
+        for field in vectors + scalars:
+            if not hasattr(obj, field):
+                continue
+            value = getattr(obj, field)
+            if value is None:
+                continue
+            values = value if field in vectors else (value,)
+            for index, v in enumerate(values):
+                assert type(v) is float, (
+                    f"{obj.name}.{field}[{index}] must be a native float, "
+                    f"got {type(v).__module__}.{type(v).__name__}"
+                )
+
+
 @pytest.mark.parametrize('tier',[0.,.25,.5,.75])
 def test_every_tier(task,tier):
     o=ready(task,tier);assert task.score(o)==tier
