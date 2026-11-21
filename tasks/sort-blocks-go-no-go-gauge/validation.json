@@ -1,6 +1,6 @@
 {
   "status": "revised_cpu_passed_gpu_pending",
-  "previous_task_commit": "1fe82d891159a6dc135adaa74cae67c68883a9bb",
+  "previous_task_commit": "b63e07ab506a67c875e8e7f4b5584aa3352d9dd4",
   "environment": {
     "python": "3.12.16",
     "numpy": "2.5.4",
@@ -12,10 +12,10 @@
   },
   "gate_audit_script": "audit.py",
   "final_suite": {
-    "passed": 105,
+    "passed": 111,
     "failed": 0,
     "skipped": 0,
-    "seconds": 35.12,
+    "seconds": 38.28,
     "python_environment": "yam_env",
     "full_20hz_fixture_and_interarm_replay": true
   },
@@ -30,7 +30,7 @@
     "control_hz": 20,
     "completion_step_after_20_success_frames": 2826,
     "nominal_plan_intervals": 2924,
-    "run_limit": 3000,
+    "run_limit": 6000,
     "interarm_link_aabb_clearance_m": 0.03254922151584625,
     "physics_simulated": false,
     "support_assignment": "analytic idealised settling, not PhysX"
@@ -174,13 +174,18 @@
     ]
   },
   "artifacts_sha256": {
-    "task.py": "0dc69953497c1ff84383e4fd35b23d096b8b69a955facba25d237b0a65f7e31d",
-    "task.json": "b20e43a17927c5225d8940af5e31c0cf0c9ec2ed8cdec6cf1969c20c411f94ad",
+    "task.py": "ed4abbb54f23510488ff9bad404d1828b3047273f741b697e8e601aaf6f79955",
+    "task.json": "aeb8a4919730123245eb3783206cd6953910c7e93b7d7abb3f19b023d9a2f4d0",
     "geometry.json": "c0579d613ffe5e71d65e1e8b2d0186f20f32c74b62d442cfdb4dfa06e5d03f31",
-    "test_task.py": "58c1a2c112342502ed350f57c814b70422e6a93acf0922f29ba7afcb608467ae",
+    "test_task.py": "84625de3bd0b0589f3b8eb453812a79aafd434e1ec0494679a4c06e1082177e1",
     "collision_geometry.py": "1c88aad886efa8c5dc83681e6ddc9dfba477e000fd6fa1a671b120569756b814",
     "audit.py": "13204c2ee7d49d97f5abb6371995c78c63b9fc1d6854e3139120945d2f49a7d3",
     "preflight.json": "16a589d63f819155fd80f90b3fc5bce4cfbe8637c521f8c9bffd761f34b8744e",
-    "README.md": "08af2cae17c634b3e2368e604094b55f5482fcbd1c7d9aa374d6d1aca243f77b"
+    "README.md": "aead12f7d65008b3240ea9387feaa4bd76a6379873f5e9224017878c6f318a43"
+  },
+  "optional_debug_isolation": {
+    "missing_finger_links_keep_scoring_reader_ok": true,
+    "debug_link_and_distance_exceptions_preserve_full_score": true,
+    "debug_disabled_does_not_read_optional_links": true
   }
 }

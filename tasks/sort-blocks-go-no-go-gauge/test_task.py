@@ -882,7 +882,8 @@ def test_debug_every_critical_step_and_second_descent_measurement(task,monkeypat
     assert record['action_step']==row['start_step']
     assert len(record['second_descent_alignment'])==1
     assert record['second_descent_alignment'][0]['accepted']
-    assert record['fixture_clearance'][0]['reason']=='missing public gripper/finger link poses'
+    assert record['fixture_clearance'] is None
+    assert record['debug_link_reason']=='debug link poses unavailable: no articulation views'
     assert set(('pos_m','quat_xyzw','bottom_corners_m','target_support_gap_mm','released','still')).issubset(record['contact']['block_1'])
 
 
@@ -921,3 +922,58 @@ def test_release_drop_below_two_mm(task):
                 support = task.FLOOR_TOP if where == 'tray' else (task.BASE_TOP if width < task.GAPS[where][2] else task.ANVIL_TOP)
                 drop = p.pos[2]-task.GRIP_Z-support
                 assert 0 <= drop < .002, (p.label, drop)
+
+
+@pytest.mark.parametrize('failure', ['link_exception', 'distance_exception', 'missing_tips'])
+def test_optional_debug_failures_never_change_scoring(task, monkeypatch, failure, capsys):
+    def fail(*args):
+        raise RuntimeError('intentional diagnostic failure')
+    monkeypatch.setenv('TASK_DEBUG', '1')
+    if failure == 'link_exception':
+        monkeypatch.setattr(task, 'read_debug_link_poses', fail)
+    elif failure == 'distance_exception':
+        monkeypatch.setattr(task, 'read_debug_link_poses', lambda: ([{}, {}], 'ok'))
+        monkeypatch.setattr(task, 'collision_geometry', fail)
+    else:
+        monkeypatch.setattr(task, 'read_debug_link_poses', lambda: (None, 'missing tips'))
+    objects=initial(task); tick(task, objects)
+    for name in task.BLOCKS:
+        finish_block(task, objects, name)
+    assert task.score(objects)==.75 and all(tick(task, objects, 20))
+    assert task._grip_reason=='test public sensor' and not task._failed
+    assert 'debug_link_reason' in capsys.readouterr().out
+
+
+def test_debug_disabled_never_reads_optional_links_or_distances(task, monkeypatch):
+    monkeypatch.delenv('TASK_DEBUG', raising=False)
+    def fail():
+        pytest.fail('optional diagnostics called without TASK_DEBUG')
+    monkeypatch.setattr(task, 'read_debug_link_poses', fail)
+    monkeypatch.setattr(task, 'collision_geometry', fail)
+    objects=initial(task); tick(task, objects)
+    for name in task.BLOCKS: finish_block(task, objects, name)
+    assert task.score(objects)==.75
+
+
+def test_scoring_reader_accepts_gripper_without_optional_finger_links(monkeypatch):
+    module=load(HERE/'task.py').module
+    class View:
+        count=1
+        shared_metatype=SimpleNamespace(dof_names=['joint7','joint8'],link_names=['gripper'])
+        def get_dof_positions(self): return np.array([[-.04695,-.04695]])
+        def get_link_transforms(self): return np.array([[[.2,.1,1.,0.,0.,0.,1.]]])
+    context=SimpleNamespace(instance=lambda: SimpleNamespace(physics_sim_view=SimpleNamespace(create_articulation_view=lambda p: View())))
+    monkeypatch.setitem(sys.modules,'isaaclab',SimpleNamespace())
+    monkeypatch.setitem(sys.modules,'isaaclab.sim',SimpleNamespace(SimulationContext=context))
+    readings,reason=module.read_grippers()
+    assert reason=='ok' and len(readings)==2
+    poses,debug_reason=module.read_debug_link_poses()
+    assert poses is None and 'ValueError' in debug_reason
+    assert module.read_grippers()[1]=='ok'
+
+
+def test_run_limit_metadata_and_plan_budget(task):
+    metadata=json.loads((HERE/'task.json').read_text())
+    assert task.RUN_LIMIT==6000 and metadata['run_limit'].startswith('6,000')
+    steps=round(max(sum(w.duration for w in p) for p in task.demo().values())*20)
+    assert steps < task.RUN_LIMIT <= 20*steps

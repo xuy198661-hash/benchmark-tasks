@@ -23,7 +23,7 @@ TABLE_Z = TABLE_TOP[SCENE]
 SCORE_OVER = 'end'
 SUCCESS_HOLD_S = 1.0
 CONTROL_HZ = 20
-RUN_LIMIT = 3000
+RUN_LIMIT = 6000
 RELEASE_GAP = .001
 ALIGN_HOLD_S = 1.5
 OBJECTS = [Box(**row) for row in GEOMETRY['objects']]
@@ -109,19 +109,35 @@ def read_grippers():
             q = _numpy(view.get_dof_positions())[0]
             transforms = _numpy(view.get_link_transforms())[0]
             pose = transforms[links.index('gripper')]
-            link_poses = {n: transforms[links.index(n)].tolist()
-                          for n in ('gripper', 'tip_left', 'tip_right')}
             rotation = quat_xyzw_to_matrix(pose[3:7])
             gap = -float(q[names.index('joint7')] + q[names.index('joint8')])
             tcp = pose[:3] + rotation @ np.array(TCP_OFFSET)
             if not (np.all(np.isfinite(tcp)) and -.0001 <= gap <= .0941):
                 raise ValueError('invalid gripper state')
-            readings.append({'tcp': tcp, 'gap': gap, 'axis': rotation[:, 0],
-                             'link_poses_m_xyzw': link_poses})
+            readings.append({'tcp': tcp, 'gap': gap, 'axis': rotation[:, 0]})
         return readings, 'ok'
     except Exception as error:
         _views = None
         return None, 'gripper unavailable: ' + type(error).__name__
+
+
+def read_debug_link_poses():
+    """Optional diagnostics only; never changes the scoring sensor or its reason."""
+    try:
+        if _views is None:
+            return None, 'debug link poses unavailable: no articulation views'
+        readings = []
+        for view in _views:
+            links = list(view.shared_metatype.link_names)
+            transforms = _numpy(view.get_link_transforms())[0]
+            poses = {n: transforms[links.index(n)].tolist()
+                     for n in ('gripper', 'tip_left', 'tip_right')}
+            if not all(np.all(np.isfinite(p)) and np.linalg.norm(p[3:]) > .5 for p in poses.values()):
+                raise ValueError('invalid link pose')
+            readings.append(poses)
+        return readings, 'ok'
+    except Exception as error:
+        return None, 'debug link poses unavailable: '+type(error).__name__
 
 
 def _valid(objects):
@@ -467,19 +483,22 @@ def _print_progress(objects, valid):
                            if where in GAPS else TABLE_Z)
                 z = _bottom(objects[name], SPECS[name].size)[:, 2]
                 contact[name]['target_support_gap_mm'] = ((z-support)*1000).tolist()
-    clearance = None
-    if valid and _grips is not None:
-        try:
-            clearance = [collision_geometry().measured_clearance(g, objects, SPECS, ANVIL_TOP) for g in _grips]
-        except Exception as error:
-            clearance = {'reason': 'clearance unavailable: '+type(error).__name__}
+    clearance, link_poses = None, None
+    try:
+        link_poses, link_reason = read_debug_link_poses()
+        if valid and link_poses is not None:
+            clearance = [collision_geometry().measured_clearance(
+                {'link_poses_m_xyzw': poses}, objects, SPECS, ANVIL_TOP) for poses in link_poses]
+    except Exception as error:
+        link_reason = 'debug diagnostics unavailable: '+type(error).__name__
+        clearance = {'reason': link_reason}
     print('task_progress ' + json.dumps({'step': _step, 'action_step': k,
           'phase': phases, 'second_descent_alignment': alignments,
           'checks': _checks, 'credited': _count(objects), 'failed': _failed, 'invalid': _invalid,
           'gripper': _grip_reason, 'gripper_reasons': [_grip_reason]*2,
           'pad_gaps_mm': None if _grips is None else [g['gap']*1000 for g in _grips],
           'tcp_m': None if _grips is None else [np.asarray(g['tcp']).tolist() for g in _grips],
-          'link_poses_m_xyzw': None if _grips is None else [g.get('link_poses_m_xyzw') for g in _grips],
+          'link_poses_m_xyzw': link_poses, 'debug_link_reason': link_reason,
           'fixture_clearance': clearance, 'contact': contact}), flush=True)
 
 

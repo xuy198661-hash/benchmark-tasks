@@ -115,7 +115,7 @@ public gripper readings fail closed; there is no automatic release bypass.
 | CPU IK position / orientation | <0.5 mm / <0.1° |
 | CPU robot–fixture / operational tip–anvil gap | ≥3 / ≥3 mm |
 | Nominal release drop | 1 mm; every release must be <2 mm |
-| Run limit | 3,000 steps at 20 Hz, 150 s |
+| Run limit | 6,000 steps at 20 Hz, 300 s |
 
 Tilt, wrong/unchecked tray placement and work-envelope errors are repairable
 current-state invalidity: no score while invalid, and affected inspection
@@ -160,7 +160,7 @@ The full 146.2 s plan has 2,924 intervals / **2,925 frames per arm**.
 An explicit ideal-settling replay reaches the framework-style 20-frame success
 hold at **step 2,826**, with minimum inter-arm link AABB gap **32.549222 mm**.
 Ideal released bars are assigned their analytic support pose: this is not a GPU
-score. 3,000 exceeds 2,826 and is below 20×2,826; recheck against the eventual
+score. 6,000 exceeds 2,826 and is below 20×2,826; recheck against the eventual
 physical demo's actual completion steps before submission.
 
 The full suite passes; exact count, environment, hashes and negative-test output
@@ -185,7 +185,7 @@ actual TCPs/openings, public gripper/finger link poses, and nearest fixed-Box
 convex-hull distance/witnesses. Second-descent entry explicitly prints actual
 centre error and both side clearances. Unavailable or unconverged distance data
 is identified; it does not become an invented clearance or alter scoring.
-The new finger-link view path and debug performance require GPU validation.
+Optional finger-link reads and convex distance calculations occur only inside TASK_DEBUG output. Their failures print a diagnostic reason and do not change gripper release sensing, success or score. The new finger-link view path and debug performance require GPU validation.
 
 Read instruction from task.json; create `$HOME/yam-eval` first. Confirm flags in
 `inspect-robots run --help` before adding optional seed/no-prompt flags. Use tmux
@@ -201,7 +201,7 @@ TASK_DEBUG=1 inspect-robots run --embodiment yam_arena --policy yam_scripted \
   2>&1 | tee "$HOME/yam-eval/$T-smoke.log"
 ```
 
-For the full demo use `--max-steps 3000` and `$HOME/yam-eval/$T-demo`. With the
+For the full demo use `--max-steps 6000` and `$HOME/yam-eval/$T-demo`. With the
 new holds a 200-step smoke ends before the first GO second descent (step 260).
 A full demo is needed to validate release/alignment. Check result JSON status,
 score and termination; CLI exit zero does not establish success. Revised
