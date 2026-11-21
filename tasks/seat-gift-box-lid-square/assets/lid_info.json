@@ -1,41 +1,42 @@
 {
   "low_m": [
-    -0.054,
-    -0.037,
+    -0.056,
+    -0.039,
     0.0
   ],
   "high_m": [
-    0.054,
-    0.037,
+    0.056,
+    0.039,
     0.028
   ],
   "size_m": [
-    0.108,
-    0.074,
+    0.112,
+    0.078,
     0.028
   ],
   "center_of_mass_m": [
-    -1.004721349315047e-17,
-    5.784940943251912e-19,
-    0.019487012987013
+    -7.437867892299213e-19,
+    3.4666444573404626e-18,
+    0.017421052631578945
   ],
-  "volume_m3": 3.4495999999999996e-05,
-  "mass_kg": 0.04277503999999999,
-  "triangles": 92,
+  "volume_m3": 5.532800000000005e-05,
+  "mass_kg": 0.06860672000000007,
+  "triangles": 276,
   "watertight_edges": true,
-  "stl_sha256": "a04f8d152c163a238320645c61d2f4a4146a0353a2da36dc90f2938bfbad13bf",
+  "stl_sha256": "2f3bf02d59f49d05512bf568805e9b39009ba16b9d62ad5f682dbf0f6f3168a5",
   "units": "m (STL files use mm)",
   "source": "Original printable design; no physical sample measured",
   "material": "PLA, solid walls and floor, 100 percent infill",
   "density_kg_m3": 1240.0,
   "print_linear_tolerance_m": 0.0002,
+  "wall_thickness_m": 0.004,
   "rest_pose": "panel up, skirt down",
   "panels": [
     {
       "name": "panel",
       "size_m": [
-        0.108,
-        0.074,
+        0.112,
+        0.078,
         0.002
       ],
       "center_m": [
@@ -47,38 +48,38 @@
     {
       "name": "side_positive",
       "size_m": [
-        0.108,
-        0.002,
+        0.112,
+        0.004,
         0.026000000000000002
       ],
       "center_m": [
         0,
-        0.036,
+        0.037,
         0.013000000000000001
       ]
     },
     {
       "name": "side_negative",
       "size_m": [
-        0.108,
-        0.002,
+        0.112,
+        0.004,
         0.026000000000000002
       ],
       "center_m": [
         0,
-        -0.036,
+        -0.037,
         0.013000000000000001
       ]
     },
     {
       "name": "end_positive",
       "size_m": [
-        0.002,
-        0.06999999999999999,
+        0.004,
+        0.07,
         0.026000000000000002
       ],
       "center_m": [
-        0.053,
+        0.054,
         0,
         0.013000000000000001
       ]
@@ -86,12 +87,12 @@
     {
       "name": "end_negative",
       "size_m": [
-        0.002,
-        0.06999999999999999,
+        0.004,
+        0.07,
         0.026000000000000002
       ],
       "center_m": [
-        -0.053,
+        -0.054,
         0,
         0.013000000000000001
       ]
@@ -105,6 +106,6 @@
   "panel_high_m": 0.028,
   "panel_thickness_m": 0.002,
   "skirt_height_m": 0.026,
-  "extent_m": 0.108,
-  "usda_sha256": "cabf3f4b89a4a8af358646a72c35fd5c018a44df8170e685a30f4a307ca086b6"
+  "extent_m": 0.112,
+  "usda_sha256": "e181128249d3fd10ae6fdce18c47d6f970ec5d4f3249e77c5e8b797542c84d74"
 }

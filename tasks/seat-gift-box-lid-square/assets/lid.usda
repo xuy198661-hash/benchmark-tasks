@@ -9,15 +9,15 @@ def Xform "GiftBox" (
 )
 {
     bool physics:rigidBodyEnabled = true
-    float physics:mass = 0.04277504
-    point3f physics:centerOfMass = (-1.00472134932e-17, 5.78494094325e-19, 0.019487012987)
+    float physics:mass = 0.06860672
+    point3f physics:centerOfMass = (-7.4378678923e-19, 3.46664445734e-18, 0.0174210526316)
     def Cube "panel" (
         prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
         double size = 1
         double3 xformOp:translate = (0, 0, 0.027)
-        double3 xformOp:scale = (0.108, 0.074, 0.002)
+        double3 xformOp:scale = (0.112, 0.078, 0.002)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         bool physics:collisionEnabled = true
     }
@@ -26,8 +26,8 @@ def Xform "GiftBox" (
     )
     {
         double size = 1
-        double3 xformOp:translate = (0, 0.036, 0.013)
-        double3 xformOp:scale = (0.108, 0.002, 0.026)
+        double3 xformOp:translate = (0, 0.037, 0.013)
+        double3 xformOp:scale = (0.112, 0.004, 0.026)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         bool physics:collisionEnabled = true
     }
@@ -36,8 +36,8 @@ def Xform "GiftBox" (
     )
     {
         double size = 1
-        double3 xformOp:translate = (0, -0.036, 0.013)
-        double3 xformOp:scale = (0.108, 0.002, 0.026)
+        double3 xformOp:translate = (0, -0.037, 0.013)
+        double3 xformOp:scale = (0.112, 0.004, 0.026)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         bool physics:collisionEnabled = true
     }
@@ -46,8 +46,8 @@ def Xform "GiftBox" (
     )
     {
         double size = 1
-        double3 xformOp:translate = (0.053, 0, 0.013)
-        double3 xformOp:scale = (0.002, 0.07, 0.026)
+        double3 xformOp:translate = (0.054, 0, 0.013)
+        double3 xformOp:scale = (0.004, 0.07, 0.026)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         bool physics:collisionEnabled = true
     }
@@ -56,8 +56,8 @@ def Xform "GiftBox" (
     )
     {
         double size = 1
-        double3 xformOp:translate = (-0.053, 0, 0.013)
-        double3 xformOp:scale = (0.002, 0.07, 0.026)
+        double3 xformOp:translate = (-0.054, 0, 0.013)
+        double3 xformOp:scale = (0.004, 0.07, 0.026)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         bool physics:collisionEnabled = true
     }

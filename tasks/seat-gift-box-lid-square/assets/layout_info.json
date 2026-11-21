@@ -17,7 +17,8 @@
   ],
   "gift_density_kg_m3": 700.0,
   "grip_above_lid_bottom_m": 0.019,
-  "release_gap_m": 0.004,
+  "release_gap_m": 0.001,
+  "grip_target_gap_m": 0.0774,
   "travel_above_table_m": 0.12,
   "clearance_per_side_m": [
     0.001999999999999995,

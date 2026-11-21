@@ -29,6 +29,7 @@
   "material": "PLA, solid walls and floor, 100 percent infill",
   "density_kg_m3": 1240.0,
   "print_linear_tolerance_m": 0.0002,
+  "wall_thickness_m": 0.002,
   "rest_pose": "flat floor down",
   "panels": [
     {

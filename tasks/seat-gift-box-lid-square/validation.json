@@ -1,172 +1,190 @@
 {
-  "status": "cpu_validated_gpu_and_physical_sample_pending",
+  "status": "revised_cpu_passed_gpu_pending",
+  "previous_task_commit": "e40fccc0ad6c8c860c0e45952904a9a6c17c2a25",
   "environment": {
-    "os": "macOS-26.6-arm64-arm-64bit",
-    "python": "3.12.14",
-    "numpy": "2.3.5",
+    "python": "3.12.16",
+    "numpy": "2.5.4",
     "pytest": "9.2.0",
-    "openusd": "0.26.11",
-    "framework": "real local yam_arena",
+    "platform": "macOS-26.6-arm64-arm-64bit",
     "framework_git_commit": "bd62771e60320433893bd1d2df0fc79b5ddcd6d1",
-    "isaac_sim": false,
     "gpu": false
   },
-  "baseline": {
-    "passed": 104,
+  "full_suite": {
+    "passed": 116,
     "failed": 0,
     "skipped": 1,
-    "seconds": 13.2,
-    "skip_reason": "Native articulation reader needs an active Isaac Lab GPU YAM scene"
+    "seconds": 13.05,
+    "skip_reason": "requires an active Isaac Lab GPU scene; public API shape covered by CPU test"
   },
-  "prior_failures": [
-    {
-      "stage": "first loader probe",
-      "failure": "Postponed dataclass annotations and dynamic module registration; replaced with plain Runtime class"
-    },
-    {
-      "stage": "first full suite",
-      "passed": 63,
-      "failed": 3,
-      "skipped": 1,
-      "failures": [
-        "reserved metrics helper name",
-        "positive height threshold fixture failed to settle the base",
-        "negative height threshold fixture failed to settle the base"
-      ]
-    },
-    {
-      "stage": "second full suite",
-      "passed": 101,
-      "failed": 1,
-      "skipped": 1,
-      "failures": [
-        "NumPy boolean identity/serialization at failed base-height check; cast to bool"
-      ]
-    },
-    {
-      "stage": "third full suite",
-      "passed": 103,
+  "cpu_audit": {
+    "script": "audit.py",
+    "frames_per_arm": 611,
+    "plan_steps": 610,
+    "plan_seconds": 30.5,
+    "run_limit": 1200,
+    "passed": true,
+    "max_ik_mm": 0.09726142961686549,
+    "max_ik_deg": 0.011742382397223505,
+    "min_robot_fixture_aabb_m": 0.006016519927043468
+  },
+  "negative_test": {
+    "mutation": "rebuild lid 4 mm walls /112x78 -> 2 mm walls /108x74, preserving 104x70 cavity",
+    "test": "test_grip_section_keeps_pad_in_outer_wall_with_three_mm_inner_reserve",
+    "result": "1 failed, 116 deselected in 0.35s",
+    "failure": "command pad lies 1.73108174157 mm outside old wall",
+    "restored_all_assets_and_builder": true,
+    "full_suite_passed_after_restore": true
+  },
+  "continuous_finger_interface": {
+    "unit": "metres, single prismatic finger joint target",
+    "open": -0.04695,
+    "closed": 0.0,
+    "chosen_finger": -0.0387,
+    "nominal_gap_m": 0.0774,
+    "normalized_action": 0.8242811501597443,
+    "source_chain": [
+      "demo.Waypoint",
+      "demo.ArmPlan.target",
+      "demo.ArmPlan.action7",
+      "actions.YamGripperAction.process_actions",
+      "actions.YamGripperAction.apply_actions",
+      "URDF joint7/joint8 prismatic"
+    ]
+  },
+  "mesh_sizes_bytes": {
+    "base.stl": 4684,
+    "lid.stl": 13884
+  },
+  "previous_gpu_demo": {
+    "json_status": "success",
+    "score": 0.0,
+    "steps": 530,
+    "termination": "policy_stop",
+    "framework_seconds": 77.12991244
+  },
+  "unverified": [
+    "GPU actual grip gap >=77 mm, slip and tilt<=0.5deg",
+    "actual cooked colliders",
+    "actual four-side alignment before second descent",
+    "5 mm contact offset with 2 mm fit clearance",
+    "grip/release/settling/full score",
+    "new debug performance",
+    "actual demo/run_limit ratio",
+    "physical sample dimensions/force/tolerance",
+    "Dream-1, media, uploads",
+    "current all-PR duplication review"
+  ],
+  "prior_test_record": {
+    "baseline": {
+      "passed": 104,
       "failed": 0,
       "skipped": 1,
-      "note": "Before adding 10 mm upward reach reserve check"
-    }
-  ],
-  "mutations": [
-    {
-      "mutation": "score_returns_one",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "5 failed, 100 deselected in 0.78s",
-      "elapsed_s": 1.009
+      "seconds": 13.2,
+      "skip_reason": "Native articulation reader needs an active Isaac Lab GPU YAM scene"
     },
-    {
-      "mutation": "ignore_latches",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "8 failed, 97 deselected in 1.57s",
-      "elapsed_s": 1.807
-    },
-    {
-      "mutation": "reset_on_slow_return",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "2 failed, 1 passed, 102 deselected in 0.58s",
-      "elapsed_s": 0.811
-    },
-    {
-      "mutation": "ignore_hands",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "2 failed, 103 deselected in 0.46s",
-      "elapsed_s": 0.676
-    },
-    {
-      "mutation": "yaw_is_tilt",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "2 failed, 1 passed, 102 deselected in 0.49s",
-      "elapsed_s": 0.712
-    },
-    {
-      "mutation": "score_mutates_state",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 0.35s",
-      "elapsed_s": 0.569
-    },
-    {
-      "mutation": "wrong_debug_cadence",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 0.32s",
-      "elapsed_s": 0.543
-    },
-    {
-      "mutation": "release_too_low",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 0.39s",
-      "elapsed_s": 0.611
-    },
-    {
-      "mutation": "unreachable_demo",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 0.56s",
-      "elapsed_s": 0.786
-    },
-    {
-      "mutation": "fingers_scrape_table",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 4.55s",
-      "elapsed_s": 4.774
-    },
-    {
-      "mutation": "velocity_only_rest",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "1 failed, 104 deselected in 0.33s",
-      "elapsed_s": 0.551
-    },
-    {
-      "mutation": "oversize_lid",
-      "exit_code": 1,
-      "caught": true,
-      "summary": "2 failed, 1 passed, 102 deselected in 0.30s",
-      "elapsed_s": 0.516
-    }
-  ],
-  "asset_dimensions_source": "Original design STL/USDA files, no physical sample measured",
-  "preflight_gates_passed": true,
-  "external_tools": {
-    "make_gift_box_usda.py": "a260b95c37c6220afb766dd5631254e4a27298e98afafab53a38c14106e7bf92",
-    "gift_box_preflight.py": "507fdeb45a1e1c7052f94c076413ba3561aa5bd7cd001dae9aee86886ad18ba1"
+    "mutations_apply_to_prior_source": [
+      {
+        "mutation": "score_returns_one",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "5 failed, 100 deselected in 0.78s",
+        "elapsed_s": 1.009
+      },
+      {
+        "mutation": "ignore_latches",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "8 failed, 97 deselected in 1.57s",
+        "elapsed_s": 1.807
+      },
+      {
+        "mutation": "reset_on_slow_return",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "2 failed, 1 passed, 102 deselected in 0.58s",
+        "elapsed_s": 0.811
+      },
+      {
+        "mutation": "ignore_hands",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "2 failed, 103 deselected in 0.46s",
+        "elapsed_s": 0.676
+      },
+      {
+        "mutation": "yaw_is_tilt",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "2 failed, 1 passed, 102 deselected in 0.49s",
+        "elapsed_s": 0.712
+      },
+      {
+        "mutation": "score_mutates_state",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 0.35s",
+        "elapsed_s": 0.569
+      },
+      {
+        "mutation": "wrong_debug_cadence",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 0.32s",
+        "elapsed_s": 0.543
+      },
+      {
+        "mutation": "release_too_low",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 0.39s",
+        "elapsed_s": 0.611
+      },
+      {
+        "mutation": "unreachable_demo",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 0.56s",
+        "elapsed_s": 0.786
+      },
+      {
+        "mutation": "fingers_scrape_table",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 4.55s",
+        "elapsed_s": 4.774
+      },
+      {
+        "mutation": "velocity_only_rest",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "1 failed, 104 deselected in 0.33s",
+        "elapsed_s": 0.551
+      },
+      {
+        "mutation": "oversize_lid",
+        "exit_code": 1,
+        "caught": true,
+        "summary": "2 failed, 1 passed, 102 deselected in 0.30s",
+        "elapsed_s": 0.516
+      }
+    ]
   },
-  "file_sha256": {
-    "README.md": "b2421bee5323274a3a79291fe998249586504f2a50db3e36fcfde979a8178dcb",
-    "assets/LICENSE.txt": "c79ee4de7105b9fd66fd8b43e45a145d92160e7a2931566d39bf0e2d00be72bd",
-    "assets/base.stl": "e015be1a35ac00d690de507749f98621c98951da1641d58831fd07fd4840fefc",
-    "assets/base.usda": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854",
-    "assets/base_info.json": "12aede3ae72912afc0eb571996e187c625395b00d981e634f9d43f83c19a74d9",
+  "artifacts_sha256": {
+    "collision_geometry.py": "f6cb317e5961e2a824c2374eb62ac779c6f218b17d0e8c37b122bcfcea34bad4",
+    "task.py": "162562c5328888d80f6c763a9a02ff2bd334800b06459c6211e0c51bb1a1837f",
+    "test_task.py": "3594409c2c74514464f7ef1db29b19ad51051e8be5a64bc022db7b97c8b77fe5",
+    "audit.py": "b9f35e12e58a96c9b635935d5a103335106352b868211a54e0db523fe823b981",
+    "build_assets.py": "f0267d871796ab25ea76c2da07585e7ee7d5e7a610de4548df8d4db6d1628fac",
+    "task.json": "6f84200795884e582942fc4e71abbb145ebfa16ffd7f6cda4ad6a8aaa9d2909f",
+    "README.md": "919cf98780748b897403b3dba0c4adce2af97a2b1f536e5e7154128d3ab26e5d",
+    "preflight.json": "71f417f807ac5f444bb72e3b12198f2cfe6c8847a2c5f499651a5c060fccaab4",
+    "assets/lid.stl": "2f3bf02d59f49d05512bf568805e9b39009ba16b9d62ad5f682dbf0f6f3168a5",
     "assets/gripper_info.json": "2a3d2f54239df7628388122cf9f5998c3801c800ab205e1a7983bc7aecd4f0f8",
-    "assets/layout_info.json": "62d0c784de43b345bffeb64abb9fb6bbcfb4da38f4e633a27bde38d3c76b74d6",
-    "assets/lid.stl": "a04f8d152c163a238320645c61d2f4a4146a0353a2da36dc90f2938bfbad13bf",
-    "assets/lid.usda": "cabf3f4b89a4a8af358646a72c35fd5c018a44df8170e685a30f4a307ca086b6",
-    "assets/lid_info.json": "899af69b9bc7a4d587aaf77fad9fb61b1bf1403cc926fd222a6ee6a81f5c41ca",
-    "preflight.json": "63816e90341c270f3a113332d5ade75f1774fa28c834b04c86f81d9abebc64d6",
-    "task.json": "1feeeb181a7a1e42d10bb6e778a4122053d4a4c45810e44ffb28c4321c4080c8",
-    "task.py": "4e8a92178b20a64b9ba53c3a93297e943905174317f40b263601f3a5be85a510",
-    "test_task.py": "e4ffb56f39d6c386acc111ef1c242c7992b217a3bd1a66149f615f02d3eb3811"
-  },
-  "not_verified": [
-    "physical print dimensions and four side clearances",
-    "actual PLA density and finished mass",
-    "GPU registry/cooking and inherited contact-offset/friction behaviour",
-    "native public-API articulation views, transform layout and frontend conversion",
-    "dynamic grasp, gift stability, seating, tracking, slip and contact support",
-    "inter-arm/self collisions and force-based contact",
-    "actual GPU runtime, full success, release video, scores and required media",
-    "current private board ownership beyond the public snapshot"
-  ]
+    "assets/lid.usda": "e181128249d3fd10ae6fdce18c47d6f970ec5d4f3249e77c5e8b797542c84d74",
+    "assets/layout_info.json": "114adb2ce99777df7f8d80387fbc92938b1e8943efd4c39589f244c6f1023537",
+    "assets/base.stl": "e015be1a35ac00d690de507749f98621c98951da1641d58831fd07fd4840fefc",
+    "assets/base_info.json": "eed308d76dd61ee11a3808680272d27fc56a1af9d2bfa445dcded904dd41614f",
+    "assets/lid_info.json": "07c3bef520aff14df22b7241c99635cd9564db0d82a39881996b5caae4d72adc",
+    "assets/base.usda": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854"
+  }
 }

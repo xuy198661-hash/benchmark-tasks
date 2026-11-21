@@ -314,7 +314,7 @@ def test_debug_prints_only_at_required_steps(task,monkeypatch,capsys):
     monkeypatch.setenv('TASK_DEBUG','1');o=start(task)
     for _ in range(45):task.success(o)
     rows=[json.loads(line.split(' ',1)[1]) for line in capsys.readouterr().out.splitlines() if line.startswith('task_progress ')]
-    assert [r['step'] for r in rows]==[1,20,40]
+    assert [r['step'] for r in rows]==[k for k in range(1,46) if task.debug_due(k)]
     assert all(r['partial']==0 for r in rows)
 
 
@@ -464,7 +464,7 @@ def test_demo_20hz_ik_limits_release_and_all_collision_mesh_clearances(task):
     assert duration+3+task.SUCCESS_HOLD_S<task.RUN_LIMIT/20
     release=next(w for w in routes['right'] if w.label=='release')
     expected=task.TABLE_Z+task.D['seated_lid_bottom_m']+task.D['grip_above_lid_bottom_m']
-    assert .003<=release.pos[2]-expected<=.005
+    assert 0<=release.pos[2]-expected<.002
     assert all(w.yaw==0 and isinstance(w,Waypoint) for ws in routes.values() for w in ws)
     for side,ws in routes.items():
         plan=ArmPlan(ws,station.BASES[side]);frames=math.ceil(duration*20)+1
@@ -473,7 +473,7 @@ def test_demo_20hz_ik_limits_release_and_all_collision_mesh_clearances(task):
             assert np.all(q>=ik.LOWER) and np.all(q<=ik.UPPER)
             assert plan.worst_ik_mm<=.5 and plan.worst_ik_deg<=.1,(side,k,label,plan.worst_ik_mm)
             finger=plan.target(k/20)[2]
-            if side=='right' and label in ('close','lift','carry','lower','settle lid','release'):finger=min(finger,-task.SIZES['lid'][1]/2)
+            if side=='right' and label in ('close','grip hold','lift','carry','lower first','place align','lower second','settle lid','release'):finger=min(finger,-task.SIZES['lid'][1]/2)
             joints=dict(zip(ARM_JOINTS,q));joints.update(joint7=finger,joint8=finger);fk=forward_kinematics(YAM_URDF,joints)
             for link,mesh,v,e,n in geom:
                 if link=='base':continue
@@ -481,7 +481,7 @@ def test_demo_20hz_ik_limits_release_and_all_collision_mesh_clearances(task):
                 for fixture,fl,fh in fixed:
                     if np.linalg.norm(np.maximum(np.maximum(fl-hi,lo-fh),0))>=.001:continue
                     assert not sat_hit(world,e@R.T,n@R.T,fl-.001,fh+.001),(side,k,label,link,mesh,fixture)
-        assert frames==471
+        assert frames==611
 
 
 @pytest.mark.skipif(os.environ.get('TASK_GPU_TESTS')!='1',reason='Requires an active Isaac Lab GPU YAM scene; CPU fixtures do not validate the native articulation view')
@@ -591,3 +591,89 @@ def test_demo_has_ten_mm_upward_reach_reserve(task):
         for k in range(math.ceil(plan.duration*20)+1):
             plan.action7(k/20)
             assert plan.worst_ik_mm<=.5 and plan.worst_ik_deg<=.1,(side,k,plan.worst_ik_mm)
+
+
+def test_regenerated_mesh_files_are_distinct_and_wall_section_supports_grasp(task):
+    base=HERE/'assets/base.stl';lid=HERE/'assets/lid.stl'
+    assert base.stat().st_size!=lid.stat().st_size
+    assert base.read_bytes()!=lid.read_bytes()
+    assert task.INFO['lid']['size_m']==pytest.approx([.112,.078,.028])
+    assert task.INFO['lid']['mass_kg']==pytest.approx(.06860672)
+    assert task.INFO['lid']['panel_thickness_m']==pytest.approx(.002)
+
+
+def test_grip_section_keeps_pad_in_outer_wall_with_three_mm_inner_reserve(task):
+    from yam_arena.constants import READY,TCP_OFFSET
+    from yam_arena.demo import grip_rotation
+    q=dict(zip(ARM_JOINTS,READY))|{'joint7':task.GRIP_TARGET,'joint8':task.GRIP_TARGET}
+    fk=forward_kinematics(YAM_URDF,q);inverse=np.linalg.inv(fk['gripper'])
+    for link,sign,side in [('tip_left',1,'side_positive'),('tip_right',-1,'side_negative')]:
+        points=[]
+        for l,mesh,v,e,n in collision_meshes():
+            if l==link:
+                tr=inverse@fk[l]
+                points.append((v@tr[:3,:3].T+tr[:3,3]-TCP_OFFSET)@grip_rotation(0).T+[0,0,task.D['grip_above_lid_bottom_m']])
+        v=np.concatenate(points)
+        band=v[(v[:,2]>=.006)&(v[:,2]<=.024)]
+        assert len(band)>0
+        pad=float((band[:,1]*sign).min())
+        wall=next(p for p in task.INFO['lid']['panels'] if p['name']==side)
+        outer=sign*wall['center_m'][1]+wall['size_m'][1]/2
+        inner=sign*wall['center_m'][1]-wall['size_m'][1]/2
+        assert 0<=outer-pad<=.0005,(side,'outer penetration command',outer-pad)
+        assert pad-inner>=.003,(side,'remaining material to cavity',pad-inner)
+        assert wall['size_m'][1]>=.003
+
+
+def test_continuous_grip_roundtrip_and_no_fully_closed_waypoints(task):
+    assert task.GRIP_TARGET==pytest.approx(-.0387)
+    plan=ArmPlan(task.demo()['right'],station.BASES['right'])
+    time=next(r['start_step'] for r in task.demo_timeline() if r['label']=='grip hold')/20+.5
+    action,label=plan.action7(time)
+    assert label=='grip hold'
+    assert action[-1]==pytest.approx(.0774/.0939)
+    assert action[-1]*FINGER_OPEN==pytest.approx(task.GRIP_TARGET)
+    assert all(FINGER_OPEN<=w.finger<0 for w in task.demo()['right'])
+
+
+def test_smoke_covers_closed_hold_and_lift_and_runtime_has_twofold_budget(task):
+    timeline={r['label']:r for r in task.demo_timeline()}
+    assert timeline['close']['end_step']<=200
+    assert timeline['grip hold']['end_step']<200
+    assert timeline['lift']['start_step']<200<=timeline['lift']['end_step']
+    total=timeline['final hold']['end_step']
+    assert 1.9<=task.RUN_LIMIT/total<=2.1
+    assert timeline['pick align']['end_step']-timeline['pick align']['start_step']>=30
+    assert timeline['place align']['end_step']-timeline['place align']['start_step']>=30
+
+
+@pytest.mark.parametrize('offset,yaw,tilt,ok',[(0,0,0,True),(.0004,.2,.2,True),(.0006,0,0,False),(0,.6,0,False),(0,0,.6,False)])
+def test_actual_four_sided_alignment(task,offset,yaw,tilt,ok):
+    o=start(task)
+    o['lid']=state(task,'lid',o['base'].pos+[offset,0,.05],quat(yaw,tilt))
+    r=task.seating_alignment(o)
+    assert r['accepted']==ok
+    assert len(r['side_clearance_mm'])==4
+
+
+def test_critical_debug_every_step_and_alignment_entry(task,monkeypatch,capsys):
+    monkeypatch.setenv('TASK_DEBUG','1')
+    monkeypatch.setattr(task,'debug_contact',lambda h,o:{'reason':'test boundary'})
+    o=start(task);task.success(o)
+    row=next(r for r in task.demo_timeline() if r['label']=='lower second')
+    for k in range(row['start_step']-20,row['end_step']+21):assert task.debug_due(k)
+    task.RUNTIME.step=row['start_step']-1
+    task.success(o)
+    r=json.loads(capsys.readouterr().out.splitlines()[-1].split(' ',1)[1])
+    assert r['second_descent_entry'] and r['diagnostic_reason']=='ok'
+    assert set(r['objects'])=={'base','lid','gift'} and len(r['tcp_m']['right'])==3
+    assert 'lid_relative_tcp_m' in r and 'base_displacement_mm' in r
+
+
+def test_diagnostic_geometry_exception_does_not_change_score(task,monkeypatch,capsys):
+    monkeypatch.setenv('TASK_DEBUG','1')
+    def broken(*args):raise RuntimeError('diagnostic only')
+    monkeypatch.setattr(task,'debug_contact',broken)
+    o=ready(task)
+    assert task.score(o)==.75 and task.success(o)
+    assert 'debug_unavailable_RuntimeError' in capsys.readouterr().out

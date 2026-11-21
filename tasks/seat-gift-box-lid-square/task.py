@@ -6,13 +6,15 @@ from __future__ import annotations
 
 from collections import deque
 import itertools
+import importlib.util
+from functools import lru_cache
 import json
 import math
 import os
 from pathlib import Path
 
 import numpy as np
-from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN
+from yam_arena.constants import FINGER_CLOSED, FINGER_OPEN, TCP_OFFSET
 from yam_arena.demo import Waypoint
 from yam_arena.task_file import Asset, Box, TABLE_TOP
 
@@ -22,10 +24,11 @@ TABLE_Z = TABLE_TOP[SCENE]
 SCORE_OVER = "end"
 SUCCESS_HOLD_S = 1.0
 CONTROL_HZ = 20
-RUN_LIMIT = 800
+RUN_LIMIT = 1200
 INFO = {n: json.loads((HERE / "assets" / (n + "_info.json")).read_text())
         for n in ("base", "lid", "layout", "gripper")}
 D = INFO["layout"]
+GRIP_TARGET = -float(D["grip_target_gap_m"])/2
 # All thresholds are development estimates; physical rationale is documented in README.
 T = dict(start_xy=.003, start_z=.003, start_angle_deg=2., reset_jump=.10,
          base_drift=.020, base_height=.003, base_tilt_deg=2.,
@@ -269,6 +272,7 @@ class Runtime:
         self.read_reason = "not_observed"
         self.gaps = {}
         self.video_mode = False
+        self.debug_grasp_reference = None
 
 RUNTIME = Runtime()
 
@@ -337,11 +341,8 @@ def success(objects):
         good = (eligible(objects) and r.clear and not r.video_mode and geometry_tier(m) == .75
                 and m["center_m"] <= T["center"] and m["yaw_deg"] <= T["yaw_deg"]
                 and m["tilt_deg"] <= T["tilt_deg"])
-        if os.environ.get("TASK_DEBUG") and (r.step == 1 or r.step % 20 == 0):
-            print("task_progress "+json.dumps(dict(step=r.step, partial=score(objects), full_candidate=bool(good),
-                  latches=sorted(r.latches), still=r.still, hands_clear=r.clear,
-                  gripper_reason=reason, gripper_gaps_m=r.gaps, release_mode="video" if r.video_mode else "automatic",
-                  **m), sort_keys=True), flush=True)
+        if os.environ.get("TASK_DEBUG") and debug_due(r.step):
+            print_progress(objects,hands,reason,m,good)
         return bool(good)
     except (KeyError, ValueError, TypeError, AttributeError) as exc:
         r = RUNTIME
@@ -349,7 +350,7 @@ def success(objects):
         r.initialized = True
         r.latches.add("invalid_state")
         r.signature = None
-        if os.environ.get("TASK_DEBUG") and (r.step == 1 or r.step % 20 == 0):
+        if os.environ.get("TASK_DEBUG") and debug_due(r.step):
             print("task_progress "+json.dumps(dict(step=r.step, partial=0., reason=type(exc).__name__, latches=sorted(r.latches))), flush=True)
         return False
 
@@ -361,11 +362,116 @@ def demo():
     left=(.12,.30,hover);right=(.12,-.30,hover)
     pick=(px,py,TABLE_Z+g)
     place=(qx,qy,TABLE_Z+D["seated_lid_bottom_m"]+g+D["release_gap_m"])
-    w=[Waypoint(2.,right,FINGER_OPEN,"park"),Waypoint(1.,right,FINGER_OPEN,"settle"),
-       Waypoint(2.,(px,py,hover),FINGER_OPEN,"approach"),Waypoint(2.,pick,FINGER_OPEN,"descend"),
-       Waypoint(1.,pick,FINGER_CLOSED,"close"),Waypoint(2.,(px,py,hover),FINGER_CLOSED,"lift"),
-       Waypoint(2.5,(qx,qy,hover),FINGER_CLOSED,"carry"),Waypoint(3.,place,FINGER_CLOSED,"lower"),
-       Waypoint(1.,place,FINGER_CLOSED,"settle lid"),Waypoint(1.,place,FINGER_OPEN,"release"),
-       Waypoint(2.,(qx,qy,hover),FINGER_OPEN,"retreat"),Waypoint(2.,right,FINGER_OPEN,"park clear"),
-       Waypoint(2.,right,FINGER_OPEN,"final hold")]
+    first=(qx,qy,TABLE_Z+SIZES['base'][2]+.010+g)
+    w=[Waypoint(2.,right,FINGER_OPEN,"park"),
+       Waypoint(1.,(px,py,hover),FINGER_OPEN,"approach"),Waypoint(1.,pick,FINGER_OPEN,"descend"),
+       Waypoint(1.5,pick,FINGER_OPEN,"pick align"),Waypoint(2.,pick,GRIP_TARGET,"close"),
+       Waypoint(1.5,pick,GRIP_TARGET,"grip hold"),Waypoint(2.,(px,py,hover),GRIP_TARGET,"lift"),
+       Waypoint(2.5,(qx,qy,hover),GRIP_TARGET,"carry"),Waypoint(1.5,first,GRIP_TARGET,"lower first"),
+       Waypoint(1.5,first,GRIP_TARGET,"place align"),Waypoint(3.,place,GRIP_TARGET,"lower second"),
+       Waypoint(1.5,place,GRIP_TARGET,"settle lid"),Waypoint(2.,place,FINGER_OPEN,"release"),
+       Waypoint(1.5,place,FINGER_OPEN,"release hold"),Waypoint(2.,(qx,qy,hover),FINGER_OPEN,"retreat"),
+       Waypoint(2.,right,FINGER_OPEN,"park clear"),Waypoint(2.,right,FINGER_OPEN,"final hold")]
     return {"left":[Waypoint(x.duration,left,FINGER_OPEN,"park") for x in w],"right":w}
+
+@lru_cache(maxsize=1)
+def collision_geometry():
+    spec=importlib.util.spec_from_file_location('gift_collision_geometry',HERE/'collision_geometry.py')
+    m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+    return m
+
+
+@lru_cache(maxsize=1)
+def demo_timeline():
+    rows=[];step=0
+    for p in demo()['right']:
+        end=step+round(p.duration*CONTROL_HZ)
+        rows.append(dict(start_step=step,end_step=end,label=p.label,waypoint_target_tcp_m=list(p.pos)))
+        step=end
+    return tuple(rows)
+
+
+def debug_due(step):
+    critical=('descend','pick align','close','grip hold','lift','carry','lower first','place align',
+              'lower second','settle lid','release','release hold')
+    return step==1 or step%20==0 or any(r['label'] in critical and r['start_step']-20<=step<=r['end_step']+20
+                                      for r in demo_timeline())
+
+
+def seating_alignment(objects):
+    lid,base=objects['lid'],objects['base']
+    # Project all actual base corners into the lid frame, preserving tilt/yaw.
+    local=(vertices('base',base)-lid.pos)@rotation(lid.quat_xyzw)
+    inner=np.asarray(INFO['lid']['inner_xy_m'])/2
+    gaps=np.array([inner[0]+local[:,0].min(),inner[0]-local[:,0].max(),
+                   inner[1]+local[:,1].min(),inner[1]-local[:,1].max()])
+    delta=(lid.pos-base.pos)@rotation(base.quat_xyzw)
+    yaw=yaw_gap_deg(lid.quat_xyzw,base.quat_xyzw)
+    relative_tilt=float(np.degrees(np.arccos(np.clip((rotation(base.quat_xyzw).T@rotation(lid.quat_xyzw))[2,2],-1,1))))
+    return dict(xy_error_mm=(delta[:2]*1000).tolist(),side_order=['-x','+x','-y','+y'],
+                side_clearance_mm=(gaps*1000).tolist(),yaw_deg=yaw,relative_tilt_deg=relative_tilt,
+                accepted=bool(np.all(np.abs(delta[:2])<=.0005) and yaw<=.5 and relative_tilt<=.5 and gaps.min()>=.001))
+
+
+def debug_contact(hands,objects):
+    g=collision_geometry();out={}
+    for side,hand in hands.items():
+        rows=[];tips=[]
+        for link,mesh,v in g.collision_hulls():
+            if link not in hand['poses']:continue
+            pose=hand['poses'][link];w=v@rotation(pose[3:]).T+pose[:3]
+            if link.startswith('tip_'):tips.append(w)
+            rows.append((link,mesh,w))
+        fixtures=[]
+        for name in ('lid','base'):
+            obj=objects[name];r=rotation(obj.quat_xyzw)
+            for panel in INFO[name]['panels']:
+                local=g.CORNERS*np.asarray(panel['size_m'])/2+panel['center_m']-SIZES[name]/2*np.array([0,0,1])
+                fixtures.append((name+'/'+panel['name'],local@r.T+obj.pos))
+        # Report the nearest pair and all genuinely intersecting convex hulls.
+        nearest=g.nearest_fixture(rows,fixtures);hits=[]
+        for link,mesh,w in rows:
+            for name,box in fixtures:
+                delta=np.maximum(np.maximum(box.min(0)-w.max(0),w.min(0)-box.max(0)),0)
+                if np.linalg.norm(delta)>1e-8:continue
+                distance=g.convex_distance(w,box)
+                if distance['converged'] and distance['upper_m']<=1e-8:
+                    hits.append(dict(link=link,mesh=mesh,panel=name,witness_m=distance['witness_a_m']))
+        out[side]=dict(nearest=nearest,intersection_pairs=hits,
+                       fingertip_above_table_mm=1000*(min(v[:,2].min() for v in tips)-TABLE_Z))
+    return out
+
+
+def print_progress(objects,hands,reason,m,good):
+    # Diagnostic exceptions never escape into success()'s invalid-state handler.
+    r=RUNTIME;row=dict(step=r.step,partial=score(objects),full_candidate=bool(good),
+        latches=sorted(r.latches),still=r.still,hands_clear=r.clear,gripper_reason=reason,
+        gripper_gaps_m=r.gaps,release_mode='video' if r.video_mode else 'automatic',**m)
+    try:
+        phases=[p for p in demo_timeline() if p['start_step']<=r.step<p['end_step']]
+        row['phase']=phases
+        row['objects']={n:dict(pos_m=o.pos.tolist(),quat_xyzw=o.quat_xyzw.tolist(),
+            lin_vel_m_s=o.lin_vel.tolist(),ang_vel_rad_s=o.ang_vel.tolist()) for n,o in objects.items()}
+        row['base_displacement_mm']=((objects['base'].pos-NOMINAL['base'])*1000).tolist()
+        row['base_tilt_deg']=tilt_deg(objects['base'].quat_xyzw)
+        row['alignment']=seating_alignment(objects)
+        row['second_descent_entry']=any(p['label']=='lower second' and p['start_step']==r.step for p in phases)
+        if hands is not None:
+            row['link_poses_m_xyzw']={s:{n:p.tolist() for n,p in h['poses'].items()} for s,h in hands.items()}
+            row['tcp_m']={s:(h['poses']['gripper'][:3]+rotation(h['poses']['gripper'][3:])@np.asarray(TCP_OFFSET)).tolist() for s,h in hands.items()}
+            grip=hands['right']['poses']['gripper'];rot=rotation(grip[3:]);tcp=np.asarray(row['tcp_m']['right'])
+            relative=(objects['lid'].pos-tcp)@rot
+            relative_rot=rot.T@rotation(objects['lid'].quat_xyzw)
+            row['lid_relative_tcp_m']=relative.tolist()
+            row['lid_relative_tcp_rotation']=relative_rot.tolist()
+            if r.debug_grasp_reference is None and any(p['label']=='grip hold' for p in phases):
+                r.debug_grasp_reference=(relative.copy(),relative_rot.copy())
+            if r.debug_grasp_reference is not None:
+                p0,r0=r.debug_grasp_reference
+                row['grasp_translation_change_mm']=float(np.linalg.norm(relative-p0)*1000)
+                row['grasp_rotation_change_deg']=float(np.degrees(np.arccos(np.clip((np.trace(r0.T@relative_rot)-1)/2,-1,1))))
+            row['contact_geometry']=debug_contact(hands,objects)
+        row['diagnostic_reason']='ok'
+    except Exception as exc:
+        row['diagnostic_reason']='debug_unavailable_'+type(exc).__name__
+    print('task_progress '+json.dumps(row,sort_keys=True),flush=True)

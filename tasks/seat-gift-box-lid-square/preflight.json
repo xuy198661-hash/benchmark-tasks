@@ -1,26 +1,26 @@
 {
   "environment": {
-    "python": "3.12.14",
-    "numpy": "2.3.5",
+    "python": "3.12.16",
+    "numpy": "2.5.4",
     "platform": "macOS-26.6-arm64-arm-64bit",
     "isaac_sim": false,
     "real_yam_arena": true
   },
   "grasp": {
     "object": "lid",
-    "width_mm": 74.0,
+    "width_mm": 78.0,
     "height_mm": 26.0,
     "tcp_above_bottom_mm": 19.0
   },
   "allowed_primitives": true,
   "constructor_bind_count": 3,
   "spawn_overlaps": [],
-  "duration_s": 23.5,
-  "release_gap_mm": 4.0,
+  "duration_s": 30.5,
+  "release_gap_mm": 1.0,
   "collision_margin_mm": 1.0,
   "arms": {
     "left": {
-      "frames": 471,
+      "frames": 611,
       "worst_ik_mm": 0.09726142961686549,
       "worst_ik_deg": 0.007002431155079843,
       "joint_limits": true,
@@ -60,9 +60,9 @@
       }
     },
     "right": {
-      "frames": 471,
+      "frames": 611,
       "worst_ik_mm": 0.09724697169725549,
-      "worst_ik_deg": 0.012112755144060341,
+      "worst_ik_deg": 0.011742382397223505,
       "joint_limits": true,
       "worst_pose": {
         "step": 34,
@@ -90,10 +90,10 @@
       "base_collision_count": 0,
       "fixed_hits_first_30": [],
       "base_hits_first_30": [],
-      "min_aabb_gap_m": 0.004013279208897935,
+      "min_aabb_gap_m": 0.006016519927043468,
       "closest": {
-        "step": 300,
-        "label": "lower",
+        "step": 359,
+        "label": "lower second",
         "link": "tip_right",
         "mesh": "tip_right_008.stl",
         "fixture": "base/side_negative"
