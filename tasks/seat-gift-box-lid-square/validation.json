@@ -14,7 +14,7 @@
     "passed": 126,
     "failed": 0,
     "skipped": 1,
-    "seconds": 14.18,
+    "seconds": 13.84,
     "skip_reason": "requires an active Isaac Lab GPU scene; public API shape covered by CPU test"
   },
   "cpu_audit": {
@@ -169,11 +169,11 @@
   "artifacts_sha256": {
     "collision_geometry.py": "f6cb317e5961e2a824c2374eb62ac779c6f218b17d0e8c37b122bcfcea34bad4",
     "task.py": "b288b1aa611d388b8f5aa439cca112ee2e1964cdd00337a8833f772c15c83ef4",
-    "test_task.py": "cdf83bf7270867a7391cb8a0a3f2e19d8759a1089baceb55929ac43f6e41ab47",
+    "test_task.py": "21ba12073585eacc6a9a8bce7861917c0e4bb63a305c50d33e39834f09106d97",
     "audit.py": "b9f35e12e58a96c9b635935d5a103335106352b868211a54e0db523fe823b981",
     "build_assets.py": "f0267d871796ab25ea76c2da07585e7ee7d5e7a610de4548df8d4db6d1628fac",
-    "task.json": "93100e3d095d27a3995e19ce56b8ddc877791560011bbde614811832cbdc927b",
-    "README.md": "dc6f9d4b3b35f8ef7b633c0c5b0c5df4659e6359d18c8a6d5ff27708e3005583",
+    "task.json": "720e5257a98cf8fa5bb1c4d77c4425b15d594cf4bce0c42c560a9f0dce84057f",
+    "README.md": "407af7a3334bd09c8d6a8678e6450ad5ef6b5346a54d085bc0b2f3f68fb0af2b",
     "preflight.json": "71f417f807ac5f444bb72e3b12198f2cfe6c8847a2c5f499651a5c060fccaab4",
     "assets/lid.stl": "2f3bf02d59f49d05512bf568805e9b39009ba16b9d62ad5f682dbf0f6f3168a5",
     "assets/gripper_info.json": "2a3d2f54239df7628388122cf9f5998c3801c800ab205e1a7983bc7aecd4f0f8",
@@ -261,8 +261,17 @@
   "media": "M-B336HN",
   "threshold_evidence": "Nominal GPU feasibility only; no cutoff boundary is fully calibrated. Centre tolerance revised for 2 mm design clearance and real-trial observability. All physical/contact limits remain estimates.",
   "blind_review_scan": {
-    "scope": "all files in this task directory",
+    "scope": "all 18 task files, including JSON, USDA comments, complete binary files and their 80-byte STL headers",
     "identity_matches": 0,
-    "method": "case-insensitive search for known personal/account identifiers, private home paths and organization-name terms; manual text review"
+    "method": "case-insensitive rg --hidden --no-ignore -a for private path prefixes, personal/account identifiers, organization terms and runtime user/host names; separate STL header inspection"
+  },
+  "documentation_revision": {
+    "simulation_runtime_and_assets_unchanged": true,
+    "context_updated": true,
+    "scoring_paragraphs": 2,
+    "ruler_checks": "height plus corner range and translation-cancelled two-end gap skew",
+    "tilt_proxy_not_exact_for_all_axes": true,
+    "stl_headers_neutral": true,
+    "stl_bytes_unchanged": true
   }
 }

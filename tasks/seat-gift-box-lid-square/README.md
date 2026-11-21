@@ -5,7 +5,7 @@ moving the base, or removing the gift. Category: Societal relatability. The
 right YAM arm performs the nominal demo and the left parks; this task is not
 claimed to require bimanual manipulation.
 
-本想法源自他队已失效占位的 PR #2264，本实现从头编写。
+The idea comes from PR #2264, whose hold lapsed without revision; this implementation was written from scratch.
 
 At commit `253f934`, the GPU scripted demo scored **1.0 in 533 steps** and
 Dream-1 scored **0.0 after 1200 steps**. Uploaded media is **M-B336HN**.
@@ -124,18 +124,77 @@ clearance; contact forces and physical calibration remain unverified.
 Task instruction: “Put the lid fully onto the gift box, level and square. Keep
 the gift inside and leave the box where it is. Let go when it is seated.”
 
-Credit requires valid initial/state data,
-no latched violation, still objects and both complete grippers ≥30 mm from all
-objects, using actual public link transforms. Unavailable scoring reads fail
-closed. `score()` and `distance()` do not mutate episode state.
+### Real-trial measurements
 
-| Tier / rule | Numeric condition |
+Use a millimetre ruler, a straightedge and level side/top photos. Compare the
+trial video with a marked initial base outline to confirm release, no dragging,
+no base repositioning and the gift staying inside. Base movement over 20 mm is
+a failure, not permission to deliberately move it. The base must remain upright
+and resting on the table; the shared exclusions in the implementation below
+still apply. Award only the highest satisfied final-state tier; other outcomes
+score zero.
+
+Let Hr be the current base-rim height above the table, Ht the mean height of
+the four lid-top corners, C the horizontal centre distance measured to ±1 mm,
+Dh the maximum minus minimum corner height, and G the two-end gap-skew
+difference defined below. All dimensions in the following table are millimetres.
+
+| Award | Ruler/photo conditions, after release and settling |
 | --- | --- |
-| 0.25, rim rest | No higher award; bottom within 2 mm of rim; centre≤25 mm; tilt≤5° |
-| 0.50, engagement | No higher award; at least 10 mm below rim, no deeper than seated+1.5 mm; centre≤8 mm; tilt≤10° |
-| 0.75, seated | Full success not awarded; top within 1.5 mm of rim+2 mm; centre≤2 mm; yaw≤3°; tilt≤2° |
-| 1.0, level and square | Seated; centre≤2 mm; yaw≤1.5°; tilt≤1°, held 1 s by framework |
-| 0 | Common gates fail, or no positive tier applies |
+| 1.0 | Ht=Hr+2±1.5; C≤2; Dh≤2; G≤2.9; four visible, nonzero side gaps; held for 1 s |
+| 0.75 | Ht=Hr+2±1.5; C≤2; Dh≤4; G≤5.8; four visible, nonzero side gaps; full award not met |
+| 0.50 | Upright, partly engaged lid; Hr+0.5≤Ht≤Hr+18; C≤8; no higher award |
+| 0.25 | Upright lid resting at the rim; Ht=Hr+28±2; C≤25; no higher award |
+
+The lid is 112×78×28 mm, with a 26 mm skirt and 2 mm top panel; the base is
+100×66×40 mm. For a level lid, Ht−Hr=28−engagement. Therefore the 0.50
+engagement range [10,26+1.5] becomes Ht−Hr in [0.5,18]; rim rest becomes
+28±2; full seating becomes 28−26=2 mm, with the existing ±1.5 mm allowance.
+
+Over the 112 mm long edge, 112 sin(1°)=1.955 mm and 112 sin(2°)=3.909 mm,
+giving the approximately 1°/2° ruler criteria Dh≤2/4 mm. The actual four-corner
+range is **Dh=112|R31|+78|R32| mm**, for the lid-to-table rotation matrix R.
+Its worst direction at tilt theta is sqrt(112²+78²) sin(theta), or
+2.382/4.763 mm at 1°/2°. The four-corner limits are observable physical
+criteria, not exact replacements for all 3-D orientations. The simulation
+continues to use its unchanged normal-angle thresholds.
+
+For yaw, measure the positive/negative long-side gaps g+/g− at both ends of
+a **100 mm baseline along the base**. Extend the straight edge lines with a
+ruler if needed. Set Dnear=(g+−g−)near and Dfar=(g+−g−)far. Translation cancels
+in the two-end difference; normalize to the 112 mm lid length:
+
+```
+G = 112/(2×100) × |Dfar−Dnear| = 112 tan(|yaw|) mm
+112 tan(1.5°) = 2.933 mm  -> conservative G ≤ 2.9 mm
+112 tan(3°)   = 5.870 mm  -> conservative G ≤ 5.8 mm
+```
+
+A single opposed-gap difference at one cross-section also changes when the
+lid translates; it must not be mistaken for this yaw measurement. The actual
+100 mm base length, rather than an imaginary 112 mm overlap, sets the measuring
+baseline. All four side gaps must remain visible and nonzero when seated.
+
+A ruler or photo cannot reliably distinguish sub-millimetre centring. With
+2 mm design clearance on each side, the seated skirt already constrains
+offset to about 2 mm along each axis. The radial C≤2 mm condition is conservative
+for diagonal offsets and confirms that the lid surrounds the base; it is not
+a sub-millimetre centring requirement.
+
+### Simulation implementation
+
+All simulation thresholds and the demo trajectory are unchanged. Credit needs
+valid initial/state data, no latched violation, still objects, readable gripper
+states and both complete grippers at least 30 mm from every object. Unavailable
+scoring reads fail closed. Both hands must be clear, but the task does not
+require both arms to manipulate objects.
+
+| Tier / rule | Unchanged numeric condition |
+| --- | --- |
+| 0.25 | No higher award; skirt bottom within 2 mm of rim; centre≤25 mm; tilt≤5° |
+| 0.50 | No higher award; engagement≥10 mm, no deeper than 26+1.5 mm; centre≤8 mm; tilt≤10° |
+| 0.75 | Full success not awarded; top within 1.5 mm of rim+2 mm; centre≤2 mm; yaw≤3°; tilt≤2° |
+| 1.0 | Seated; centre≤2 mm; yaw≤1.5°; tilt≤1°; held for 1 s by framework |
 | Final base | Height within 3 mm of table-resting height; tilt≤2° |
 | Rest | Last 10 samples: position≤2 mm, angle≤0.5°; early speed≤10 mm/s, spin≤0.10 rad/s |
 | Initial pose | XY/Z≤3 mm; angle≤2° |
@@ -143,33 +202,20 @@ closed. `score()` and `distance()` do not mutate episode state.
 | Reset | >100 mm single-step jump plus complete nominal layout |
 | Run limit | 1200 steps / 60 s at 20 Hz; 2.251× the measured 533-step completion |
 
-Centre offset is horizontal **Euclidean distance**. A ruler or photo cannot
-reliably distinguish sub-millimetre centring, and the review rules explicitly
-reject sub-millimetre positions only the simulator knows. The full-credit
-centre bound is therefore **2 mm**, not 0.5 mm. With 2 mm design clearance on
-each side, the seated skirt already constrains offset to about 2 mm along
-each axis. Diagonal offsets can be larger, so a 2 mm radial bound is a
-conservative check that the lid surrounds the base, not a precision-centering
-objective.
+The scorer's top/bottom heights are centre z±14 mm. Its top differs from the
+actual mean top-corner height by 14(1−cos(tilt)) mm: 0.0021 mm at 1°, 0.0085 mm
+at 2°, 0.0533 mm at 5° and 0.2127 mm at 10°. The physical height conversions
+are exact when level; their small tilt-dependent difference is not hidden by
+changing simulation code.
 
-For real-trial judging, confirm **all four side gaps are visible and nonzero**,
-or measure the centre offset with a ruler to **±1 mm**. Also check seating
-height, tilt, yaw, release and stability as above. This is a practical outcome
-check rather than an assertion that a photo measures a 0.5 mm pose.
-
-The 0.75 centre bound also becomes 2 mm so it cannot block a valid full-credit
-state. Its remaining progress is angular alignment: for example, seated with
-yaw 2° earns 0.75; seated with yaw 0° and tilt 0°, held 1 s, earns 1.0. A seated
-tilt of 1.5° likewise earns 0.75. A 12 mm engagement earns 0.50, and resting at
-the rim earns 0.25. Award precedence makes these final awards exclusive even
-though the underlying geometric prerequisites are nested. No tier is empty.
-All height, tilt and yaw thresholds, trajectory and diagnostic alignment
-checks remain unchanged.
-
-Highest tier only, not a sum; score() caps at 0.75, and the framework alone
-awards 1.0 after its success hold. Video-review mode caps at 0.75 and disables
-full success until manual release review. Slowly restoring a failed episode
-does not clear latches. Nothing is consumed; restore all named initial poses.
+The 0.75 and full tiers share the 2 mm centre limit. A seated yaw of 2° or tilt
+of 1.5° can earn 0.75, while the stricter full pose must also hold for 1 s.
+Highest-tier precedence makes final awards exclusive; all tiers are reachable.
+score() and distance() are read-only; score() caps at 0.75 and the framework
+alone awards 1.0. In video review mode, object-only partial credit remains
+capped at 0.75 and automatic full success is disabled until release is checked
+manually. Slowly restoring a failed episode does not clear latches. Nothing
+is consumed; restore all named initial poses to reset the real trial.
 
 ## Threshold evidence and remaining estimates
 
@@ -316,6 +362,4 @@ metadata. The videos remain 320×176.
 Only **seed 0** has been tested. Threshold-boundary robustness, other layouts,
 grip forces, actual cooked collision shapes, contact-force calibration and
 physical printing/manufacturing quality remain unverified. No physical
-specimen has been measured. A current all-PR duplicate-idea check remains
-necessary before submission; an expired original hold alone does not establish
-that nobody has since submitted a related task.
+specimen has been measured.
