@@ -7,9 +7,10 @@ claimed to require bimanual manipulation.
 
 本想法源自他队已失效占位的 PR #2264，本实现从头编写。
 
-The fd23a947 seed-0 GPU demo seated and released the lid, scoring 0.75 under
-the former 0.5 mm full-credit centring rule. The centring rule is now 2 mm for
-real-trial reproducibility; a new demo, Dream-1, media and submission are pending.
+At commit `253f934`, the GPU scripted demo scored **1.0 in 533 steps** and
+Dream-1 scored **0.0 after 1200 steps**. Uploaded media is **M-B336HN**.
+Only seed 0 with object_jitter=0 has been evaluated; these results do not
+establish robustness to other seeds, layouts or physical manufacturing error.
 
 ## Reproducible setup
 
@@ -51,6 +52,12 @@ corner buildup and roughness are unmodelled. No cardboard equivalence is claimed
 USDA files. Lid exterior triangles use centroid refinement, so base.stl is
 4,684 bytes and lid.stl is 13,884 bytes, with distinct hashes. This changes the
 STL tessellation only; USD collision shapes remain the same five boxes.
+
+The base/lid designs, STL meshes and USD/USDA representations were authored
+from scratch for this task and released under **CC0 1.0 Universal**, as stated
+in [assets/LICENSE.txt](assets/LICENSE.txt). No third-party mesh or texture is
+included. Robot meshes remain external framework assets and are not
+redistributed here. Dimensions are design-file values, not physical measurements.
 
 ## Continuous grip interface and revised motion
 
@@ -134,7 +141,7 @@ closed. `score()` and `distance()` do not mutate episode state.
 | Initial pose | XY/Z≤3 mm; angle≤2° |
 | Irreversible failure | Base moved>20 mm; base/lid tilt>15/30°; box below table>10 mm; speed>0.75 m/s; gift outside interior with 1 mm margin; unexplained jump>100 mm; invalid data |
 | Reset | >100 mm single-step jump plus complete nominal layout |
-| Run limit | 1,200 steps / 60 s at 20 Hz, 1.97×610-step plan |
+| Run limit | 1200 steps / 60 s at 20 Hz; 2.251× the measured 533-step completion |
 
 Centre offset is horizontal **Euclidean distance**. A ruler or photo cannot
 reliably distinguish sub-millimetre centring, and the review rules explicitly
@@ -163,6 +170,30 @@ Highest tier only, not a sum; score() caps at 0.75, and the framework alone
 awards 1.0 after its success hold. Video-review mode caps at 0.75 and disables
 full success until manual release review. Slowly restoring a failed episode
 does not clear latches. Nothing is consumed; restore all named initial poses.
+
+## Threshold evidence and remaining estimates
+
+GPU observations have checked the nominal grasp, release and successful
+seating conditions. **No threshold boundary has been fully calibrated** by
+GPU boundary sweeps or physical measurements. The following distinction is
+intentional: measured compatibility is not a claim of a calibrated tolerance.
+
+| Check | GPU evidence | Basis and remaining limitation |
+| --- | --- | --- |
+| Centre ≤2 mm | demo3 measured 0.889511 mm; demo3/demo4 reached full score | Revised from 0.5 mm for the 2 mm design clearance and ruler/photo observability; no multi-seed boundary calibration |
+| Seated height error ≤1.5 mm | demo3 measured −0.006421 mm | Nominal seating verified; the ±1.5 mm cutoff remains a development estimate |
+| Full yaw ≤1.5°, tilt ≤1° | demo3 measured 0.065305° and 0.002152° | Nominal pose verified; angular cutoff boundaries remain development estimates |
+| Both complete grippers ≥30 mm away, stillness, 1 s hold | demo3 logged hands_clear/still true and ended with framework success | Release and hold worked once at seed 0; 30 mm and rest-window cutoffs have not been calibrated at their boundaries |
+| 77.4 mm grip command / measured opening ≥77 mm | Earlier revised-grip diagnostics measured about 78.0 mm without appreciable relative slip | Grip command is supported by this simulation; grip force, friction and slip limits are uncalibrated |
+| Pre-descent ≥1 mm side gap, per-axis centring ≤0.5 mm, yaw/tilt ≤0.5° | demo3 minimum gap was **0.450874 mm**; diagnostic accepted=false | Development diagnostic target was not met; it is not a scoring condition or an enforced motion gate |
+
+The partial-tier cutoffs, initial-pose tolerances, base drift/height/tilt limits,
+toppling/fall/speed latches, 1 mm gift-containment margin, 100 mm reset/jump
+threshold and stillness thresholds remain development estimates with CPU
+boundary/counterexample tests. The 5 mm contact offset, zero rest offset and
+1.2/1.0 friction coefficients are inherited simulation settings, not measured
+PLA parameters. CPU tests verify implementation boundaries; they do not
+establish physical validity of those boundaries.
 
 ## CPU verification and runtime logging
 
@@ -208,46 +239,83 @@ and cannot latch scoring failure. Existing complete-gripper release sensing
 remains part of scoring. Diagnostic GJK zero means contact/intersection, not a
 signed penetration depth.
 
-## Subsequent physical runs
+## Reproduce the evaluated runs
 
-Read instruction from task.json. Confirm optional flags in --help. Run long
-commands inside tmux, save logs with tee, and use a fresh directory per commit:
+Use the installed yam_arena/Inspect Robots environment. Read instruction from
+task.json, run long commands inside tmux, and save each run in a fresh log
+directory. The evaluated runs used seed 0, object_jitter=0 and 20 Hz. Both
+`--seed` and `--no-prompt` were confirmed in the installed CLI help.
 
 ```bash
 T=seat-gift-box-lid-square
 INS="$(python -c "import json; print(json.load(open('tasks/$T/task.json'))['instruction'])")"
-TASK_DEBUG=1 inspect-robots run --embodiment yam_arena --policy yam_scripted \
+unset TASK_DEBUG
+set -o pipefail
+inspect-robots run --embodiment yam_arena --policy yam_scripted \
   -E task=tasks/$T/task.py -E object_jitter=0 -E control_hz=20 \
   -E cam_width=320 -E cam_height=176 --instruction "$INS" --scorer task_score \
-  --max-steps 200 --store-frames --log-dir "$HOME/yam-eval/$T-smoke" \
-  2>&1 | tee "$HOME/yam-eval/$T-smoke.log"
+  --max-steps 1200 --seed 0 --no-prompt --store-frames \
+  --log-dir "$HOME/yam-eval/$T-demo4" 2>&1 | tee "$HOME/yam-eval/$T-demo4.log"
+inspect-robots run --embodiment yam_arena --policy dream \
+  -E task=tasks/$T/task.py -E object_jitter=0 -E control_hz=20 \
+  -E cam_width=320 -E cam_height=176 --instruction "$INS" --scorer task_score \
+  --max-steps 1200 --seed 0 --no-prompt --store-frames \
+  --log-dir "$HOME/yam-eval/$T-dream2" 2>&1 | tee "$HOME/yam-eval/$T-dream2.log"
 ```
 
-Smoke must have good scoring reads, no Traceback, stable base/gift, and during
-closing/holding/lifting actual gap≥77.0 mm, no obvious slip and lid rotation
-relative to the gripper≤0.5°. Absolute tilt is checked before second descent.
-If it fails, stop before demo. For the full demo use `--max-steps 1200` and a separate demo log path. Judge JSON status,
-score and termination, not CLI exit code. Before submission check run_limit is
-above actual demo steps and at most 20× them. Dream-1 and uploads require approval.
+Configure model credentials outside the repository. A 200-step diagnostic
+smoke uses the scripted command with `TASK_DEBUG=1`, `--max-steps 200` and a
+fresh smoke log path. Grip-slip checks use lid rotation relative to the
+gripper, not its absolute tilt during transport. Judge the result JSON status,
+score and termination reason; CLI exit code alone is insufficient.
 
-## Known evidence and limits
+## GPU results and diagnostic measurements
 
-Previous e40fccc demo: JSON status success, task score0, 530steps, policy_stop,
-77.1299 s framework time. At step160, gap69.3527mm, tilt0.3082°, yaw3.6271°;
-by180, gap58.8830mm and tilt4.4558°. Bias starts during closing, worsens during
-lift. Nominal URDF reconstruction at those openings intersects sidewall/top
-colliders, but old logs lacked absolute poses and cannot prove actual signed
-penetration. The earlier base moved/toppled and the lid did not seat.
+| Commit / run | Score | Steps | Termination | JSON status | Framework runtime |
+| --- | ---: | ---: | --- | --- | ---: |
+| 253f934 / demo4, yam_scripted | **1.0** | **533** | success | success | 78.19 s |
+| 253f934 / dream2, dreamlabs/dream-1-beta | **0.0** | **1200/1200** | max_steps | success | 153.33 s |
+| 9a03999 / demo3, TASK_DEBUG=1 | 1.0 | 533 | success | success | 120.65 s |
 
-fd23a947 demo2: JSON status success, score 0.75, 670 steps, policy_stop,
-136.03 s framework time, run_limit/steps=1.791. The final recorded centre offset
-was 0.8895 mm, top error −0.0064 mm, tilt 0.00218°, yaw 0.06530°. The lid did not
-follow the withdrawing hand; base and gift stayed stable. At second-descent
-entry, tilt 0.336° passed but the minimum side gap 0.451 mm failed the diagnostic
-1 mm target. This diagnostic remains reported and does not affect scoring.
+The submitted videos come from demo4 and dream2 at the same commit. Both ran
+without TASK_DEBUG and reported error=null. The only scene change from demo3
+to commit 253f934 was the lid's rendering colour; geometry, dynamics, scoring
+and the scripted trajectory stayed unchanged. This does not turn older
+diagnostic measurements into new measurements from demo4.
 
-Unverified: revised-score full success, behaviour outside the single tested
-seed, real grip force/torque, actual cooked collision shapes, contact-force
-calibration, physical sample/manufacturing quality, Dream-1/media, and current
-task-board competition. A full current-PR duplication review is required before
-submission; an expired original hold alone is insufficient evidence.
+Demo3's last printed pose at step **520** was:
+
+| Quantity | Measured value |
+| --- | ---: |
+| Lid top − (current base rim + 2 mm top panel) | −0.006421 mm |
+| Lid tilt from vertical | 0.002152° |
+| Lid yaw relative to base | 0.065305° |
+| Horizontal centre offset | 0.889511 mm |
+
+At that frame, full_candidate, hands_clear and still were true, with no latched
+violation. Framework success was recorded at step 533; a separate precise
+object-pose record was not printed for that terminal frame. Both gripper
+readers and added diagnostics reported ok throughout the printed states.
+The gift remained in the base and the lid did not follow the withdrawing hand.
+
+At the start of second descent (step **330**), dx/dy were
+**+0.184033/−1.131257 mm**, lid tilt was **0.336050°**, and relative yaw was
+**0.056186°**. Four projected side gaps (−x,+x,−y,+y) were
+**1.784577, 2.147171, 3.217484, 0.450874 mm**. The minimum was therefore only
+**0.451 mm**, below the 1 mm diagnostic target; `alignment.accepted=false`.
+The open-loop trajectory continued and seated successfully. This check is
+diagnostic only and does not prove a safe clearance margin for other trials.
+
+Media **M-B336HN** contains the top-camera demo4 and dream2 videos, encoded as
+H.264/yuv420p with faststart. The setup image is the first top-camera frame of
+a separate one-step scripted run at commit 253f934, requested at 1280×704.
+The framework renders at 640×360 and resizes that output; it is not native
+1280 rendering. The screenshot keeps the full scene and has no embedded
+metadata. The videos remain 320×176.
+
+Only **seed 0** has been tested. Threshold-boundary robustness, other layouts,
+grip forces, actual cooked collision shapes, contact-force calibration and
+physical printing/manufacturing quality remain unverified. No physical
+specimen has been measured. A current all-PR duplicate-idea check remains
+necessary before submission; an expired original hold alone does not establish
+that nobody has since submitted a related task.

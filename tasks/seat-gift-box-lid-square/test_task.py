@@ -458,7 +458,7 @@ def test_spawn_has_no_interpenetration(task):
 
 
 def test_asset_metadata_has_no_private_paths_or_embedded_image_metadata():
-    forbidden=[b'/Users/',b'/home/',b'C:\\',b'Exif',b'caBX',b'xmpmeta']
+    forbidden=[b'/' + b'Users/',b'/home/',b'C:\\',b'Exif',b'caBX',b'xmpmeta']
     for p in (HERE/'assets').iterdir():
         if p.suffix.lower() in ('.jpg','.jpeg'):
             # Only marker payloads, never entropy-coded pixel bytes.

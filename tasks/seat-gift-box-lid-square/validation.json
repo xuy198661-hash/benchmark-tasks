@@ -1,5 +1,5 @@
 {
-  "status": "centering_cpu_passed_demo3_pending",
+  "status": "gpu_demo_passed_model_and_media_recorded",
   "previous_task_commit": "fd23a947e5dab182afadb5e31fdf057f05b67a27",
   "environment": {
     "python": "3.12.16",
@@ -7,13 +7,14 @@
     "pytest": "9.2.0",
     "platform": "macOS-26.6-arm64-arm-64bit",
     "framework_git_commit": "bd62771e60320433893bd1d2df0fc79b5ddcd6d1",
-    "gpu": false
+    "gpu": false,
+    "scope": "CPU validation environment; measured GPU trials are listed separately."
   },
   "full_suite": {
     "passed": 126,
     "failed": 0,
     "skipped": 1,
-    "seconds": 14.21,
+    "seconds": 14.18,
     "skip_reason": "requires an active Isaac Lab GPU scene; public API shape covered by CPU test"
   },
   "cpu_audit": {
@@ -63,12 +64,11 @@
     "framework_seconds": 77.12991244
   },
   "unverified": [
-    "Revised-score GPU full success",
-    "Behaviour beyond one fixed-layout seed",
-    "Second-descent diagnostic gap >=1 mm (demo2 failed; trajectory unchanged)",
+    "Behaviour beyond fixed-layout seed 0",
+    "Threshold boundaries and physical calibration",
+    "Second-descent diagnostic gap >=1 mm (demo3 measured 0.450874 mm)",
     "Actual cooked colliders and contact-force calibration",
     "Physical sample dimensions/force/tolerance",
-    "Dream-1, media, uploads",
     "Current all-PR duplication review"
   ],
   "prior_test_record": {
@@ -168,12 +168,12 @@
   },
   "artifacts_sha256": {
     "collision_geometry.py": "f6cb317e5961e2a824c2374eb62ac779c6f218b17d0e8c37b122bcfcea34bad4",
-    "task.py": "6398a4e030a2e08a909fb84a65d20f49708de84980edb1505a7067e3e5569400",
-    "test_task.py": "38536ec42fc0da5de65fdd04047e4f0f89d860454e1ebcfa9b236034e6361aef",
+    "task.py": "b288b1aa611d388b8f5aa439cca112ee2e1964cdd00337a8833f772c15c83ef4",
+    "test_task.py": "cdf83bf7270867a7391cb8a0a3f2e19d8759a1089baceb55929ac43f6e41ab47",
     "audit.py": "b9f35e12e58a96c9b635935d5a103335106352b868211a54e0db523fe823b981",
     "build_assets.py": "f0267d871796ab25ea76c2da07585e7ee7d5e7a610de4548df8d4db6d1628fac",
-    "task.json": "2278732f9eb7e4ac953f48336d6a0ca8ca310060f9c6f0a699524631861ce5ba",
-    "README.md": "b097f93245ee60bd994b5b5a225779c173c6945324b944cea95719ae8299b787",
+    "task.json": "93100e3d095d27a3995e19ce56b8ddc877791560011bbde614811832cbdc927b",
+    "README.md": "dc6f9d4b3b35f8ef7b633c0c5b0c5df4659e6359d18c8a6d5ff27708e3005583",
     "preflight.json": "71f417f807ac5f444bb72e3b12198f2cfe6c8847a2c5f499651a5c060fccaab4",
     "assets/lid.stl": "2f3bf02d59f49d05512bf568805e9b39009ba16b9d62ad5f682dbf0f6f3168a5",
     "assets/gripper_info.json": "2a3d2f54239df7628388122cf9f5998c3801c800ab205e1a7983bc7aecd4f0f8",
@@ -182,7 +182,8 @@
     "assets/base.stl": "e015be1a35ac00d690de507749f98621c98951da1641d58831fd07fd4840fefc",
     "assets/base_info.json": "eed308d76dd61ee11a3808680272d27fc56a1af9d2bfa445dcded904dd41614f",
     "assets/lid_info.json": "07c3bef520aff14df22b7241c99635cd9564db0d82a39881996b5caae4d72adc",
-    "assets/base.usda": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854"
+    "assets/base.usda": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854",
+    "assets/LICENSE.txt": "c79ee4de7105b9fd66fd8b43e45a145d92160e7a2931566d39bf0e2d00be72bd"
   },
   "centering_revision": {
     "full_center_m": 0.002,
@@ -213,5 +214,55 @@
     "second_descent_alignment_accepted": false,
     "second_descent_min_gap_mm": 0.4508737148335232,
     "grip_stable_and_release_observed": true
+  },
+  "evaluated_task_commit": "253f93454fbe902f18c316f4d0c4980b24a197b2",
+  "gpu_runs": [
+    {
+      "label": "demo4",
+      "commit": "253f93454fbe902f18c316f4d0c4980b24a197b2",
+      "policy": "yam_scripted",
+      "seed": 0,
+      "score": 1.0,
+      "steps": 533,
+      "termination": "success",
+      "status": "success",
+      "error": null,
+      "seconds": 78.18646422999973,
+      "task_debug": false
+    },
+    {
+      "label": "dream2",
+      "commit": "253f93454fbe902f18c316f4d0c4980b24a197b2",
+      "policy": "dreamlabs/dream-1-beta",
+      "seed": 0,
+      "score": 0.0,
+      "steps": 1200,
+      "termination": "max_steps",
+      "status": "success",
+      "error": null,
+      "seconds": 153.32700415,
+      "task_debug": false
+    }
+  ],
+  "gpu_demo3_diagnostics": {
+    "commit": "9a03999eb76e5791c28f4d40367c3a45915a7d2a",
+    "score": 1.0,
+    "steps": 533,
+    "last_printed_step": 520,
+    "top_error_mm": -0.006421089172370387,
+    "tilt_deg": 0.0021515289001405205,
+    "yaw_deg": 0.06530516141701095,
+    "center_mm": 0.8895114719720303,
+    "second_descent_step": 330,
+    "second_descent_min_side_gap_mm": 0.4508737148335232,
+    "alignment_accepted": false,
+    "seed": 0
+  },
+  "media": "M-B336HN",
+  "threshold_evidence": "Nominal GPU feasibility only; no cutoff boundary is fully calibrated. Centre tolerance revised for 2 mm design clearance and real-trial observability. All physical/contact limits remain estimates.",
+  "blind_review_scan": {
+    "scope": "all files in this task directory",
+    "identity_matches": 0,
+    "method": "case-insensitive search for known personal/account identifiers, private home paths and organization-name terms; manual text review"
   }
 }
