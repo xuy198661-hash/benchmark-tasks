@@ -1,5 +1,5 @@
 """A burgundy gift-box base with a small wooden gift stands on the right half of the table.
-Its pale matching lid sits beside it, nearer the right arm, with the flat top facing up.
+Its burgundy matching lid sits beside it, nearer the right arm, with the flat top facing up.
 The box has an open cavity and the lid has a continuous skirt; the table is otherwise clear.
 """
 from __future__ import annotations
@@ -68,7 +68,7 @@ OBJECTS = [
           color=(.52, .13, .20), yaw=float(D["base_yaw_rad"]), convex=False),
     Asset("lid", LidAsset.registry_name, xy=tuple(float(v) for v in D["lid_xy_m"]),
           extent=float(INFO["lid"]["extent_m"]), mass=float(INFO["lid"]["mass_kg"]),
-          color=(.88, .75, .60), yaw=float(D["lid_yaw_rad"]), convex=False),
+          color=(.52, .13, .20), yaw=float(D["lid_yaw_rad"]), convex=False),
     Box("gift", pos=(*(float(v) for v in D["base_xy_m"]),
                      float(TABLE_Z + D["spawn_gap_m"] + INFO["base"]["panel_high_m"]
                            + D["spawn_gap_m"] + GIFT_SIZE[2]/2)),

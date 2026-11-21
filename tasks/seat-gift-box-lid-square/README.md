@@ -26,7 +26,7 @@ station table. Both parts are movable, long axes along x, yaw zero.
 | Solid volume | 37,824 mm³ | 55,328 mm³ |
 | Mass, PLA density 1,240 kg/m³ | 46.90176 g | 68.60672 g |
 | Start xy | (0.24, −0.10) | (0.20, −0.26) |
-| Colour / pose | Burgundy, opening up | Pale, top up and skirt down |
+| Colour / pose | Burgundy, opening up | Matching burgundy, top up and skirt down |
 
 Centred side clearance stays **2 mm** in x and y. The lid walls were thickened
 outward, preserving the cavity and 26 mm skirt. Lid panel is 112×78×2 mm at
