@@ -145,6 +145,57 @@ def test_full_credit_requires_framework_hold(task):
     assert held==20 and task.score(o)==.75
 
 
+def held_trial_score(task, objects):
+    """CPU pose harness for the documented framework 1 s success hold.
+
+    This checks the task callback contract; the real framework scorer and
+    physics are validated separately by the GPU demo.
+    """
+    held = 0
+    for _ in range(round(task.SUCCESS_HOLD_S * task.CONTROL_HZ)):
+        held = held + 1 if task.success(objects) else 0
+    return 1.0 if held >= round(task.SUCCESS_HOLD_S * task.CONTROL_HZ) else task.score(objects)
+
+
+def test_center_1_9_mm_earns_full_credit_after_hold(task):
+    o = ready(task, offset=(.0019, 0, 0))
+    assert task.geometry_measurements(o)['center_m'] == pytest.approx(.0019)
+    assert held_trial_score(task, o) == 1.0
+    assert task.score(o) == .75  # Framework owns the full-credit award.
+
+
+def test_center_2_1_mm_cannot_earn_full_credit(task):
+    o = ready(task, offset=(.0021, 0, 0))
+    assert held_trial_score(task, o) == .5
+    assert not task.success(o)
+
+
+def test_table_height_cannot_earn_seating_credit(task):
+    # Beside the base, resting on the table: even an upright lid gets no credit.
+    o = ready(task, 0.)
+    assert o['lid'].low[2] == pytest.approx(task.TABLE_Z)
+    assert held_trial_score(task, o) == 0.
+    # Isolate the height gate too: spoofing a centred tabletop lid cannot pass.
+    p = o['lid'].pos.copy();p[:2] = o['base'].pos[:2]
+    move(task, o, 'lid', p)
+    for _ in range(12):task.success(o)
+    assert held_trial_score(task, o) == 0.
+
+
+@pytest.mark.parametrize('level,offset,yaw,tilt,expected', [
+    (0., (0,0,0), 0., 0., 0.),
+    (.25, (0,0,0), 0., 0., .25),
+    (.5, (0,0,0), 0., 0., .5),
+    (.75, (0,0,0), 2., 0., .75),
+    (.75, (0,0,0), 0., 1.5, .75),
+    (.75, (.0019,0,0), 0., 0., 1.),
+    (.75, (.0015,.0015,0), 0., 0., .5),
+])
+def test_exclusive_final_awards_are_reachable(task,level,offset,yaw,tilt,expected):
+    o = ready(task, level, offset=offset, yaw=yaw, tilt=tilt)
+    assert held_trial_score(task, o) == expected
+
+
 def test_idle_and_wrong_start_fail_closed(task):
     o=start(task)
     for _ in range(30):assert not task.success(o)
@@ -231,7 +282,7 @@ def test_half_turn_is_not_tilt(task,yaw):
 
 
 @pytest.mark.parametrize('field,value,inside',[
-    ('offset',(.0004999,0,0),True),('offset',(.0005001,0,0),False),
+    ('offset',(.0019999,0,0),True),('offset',(.0020001,0,0),False),
     ('offset',(0,0,.0014999),True),('offset',(0,0,.0015001),False),
     ('offset',(0,0,-.0014999),True),('offset',(0,0,-.0015001),False),
     ('yaw',1.4999,True),('yaw',1.5001,False),
@@ -242,7 +293,7 @@ def test_success_threshold_both_sides(task,field,value,inside):
 
 
 @pytest.mark.parametrize('field,delta,accepted',[
-    ('center_m',.0009999,True),('center_m',.0010001,False),
+    ('center_m',.0019999,True),('center_m',.0020001,False),
     ('yaw_deg',2.9999,True),('yaw_deg',3.0001,False),
     ('tilt_deg',1.9999,True),('tilt_deg',2.0001,False),
 ])

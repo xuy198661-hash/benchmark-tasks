@@ -1,6 +1,6 @@
 {
-  "status": "revised_cpu_passed_gpu_pending",
-  "previous_task_commit": "e40fccc0ad6c8c860c0e45952904a9a6c17c2a25",
+  "status": "centering_cpu_passed_demo3_pending",
+  "previous_task_commit": "fd23a947e5dab182afadb5e31fdf057f05b67a27",
   "environment": {
     "python": "3.12.16",
     "numpy": "2.5.4",
@@ -10,10 +10,10 @@
     "gpu": false
   },
   "full_suite": {
-    "passed": 116,
+    "passed": 126,
     "failed": 0,
     "skipped": 1,
-    "seconds": 13.05,
+    "seconds": 14.21,
     "skip_reason": "requires an active Isaac Lab GPU scene; public API shape covered by CPU test"
   },
   "cpu_audit": {
@@ -63,16 +63,13 @@
     "framework_seconds": 77.12991244
   },
   "unverified": [
-    "GPU actual grip gap >=77 mm, slip and tilt<=0.5deg",
-    "actual cooked colliders",
-    "actual four-side alignment before second descent",
-    "5 mm contact offset with 2 mm fit clearance",
-    "grip/release/settling/full score",
-    "new debug performance",
-    "actual demo/run_limit ratio",
-    "physical sample dimensions/force/tolerance",
+    "Revised-score GPU full success",
+    "Behaviour beyond one fixed-layout seed",
+    "Second-descent diagnostic gap >=1 mm (demo2 failed; trajectory unchanged)",
+    "Actual cooked colliders and contact-force calibration",
+    "Physical sample dimensions/force/tolerance",
     "Dream-1, media, uploads",
-    "current all-PR duplication review"
+    "Current all-PR duplication review"
   ],
   "prior_test_record": {
     "baseline": {
@@ -171,12 +168,12 @@
   },
   "artifacts_sha256": {
     "collision_geometry.py": "f6cb317e5961e2a824c2374eb62ac779c6f218b17d0e8c37b122bcfcea34bad4",
-    "task.py": "162562c5328888d80f6c763a9a02ff2bd334800b06459c6211e0c51bb1a1837f",
-    "test_task.py": "3594409c2c74514464f7ef1db29b19ad51051e8be5a64bc022db7b97c8b77fe5",
+    "task.py": "6398a4e030a2e08a909fb84a65d20f49708de84980edb1505a7067e3e5569400",
+    "test_task.py": "38536ec42fc0da5de65fdd04047e4f0f89d860454e1ebcfa9b236034e6361aef",
     "audit.py": "b9f35e12e58a96c9b635935d5a103335106352b868211a54e0db523fe823b981",
     "build_assets.py": "f0267d871796ab25ea76c2da07585e7ee7d5e7a610de4548df8d4db6d1628fac",
-    "task.json": "6f84200795884e582942fc4e71abbb145ebfa16ffd7f6cda4ad6a8aaa9d2909f",
-    "README.md": "919cf98780748b897403b3dba0c4adce2af97a2b1f536e5e7154128d3ab26e5d",
+    "task.json": "2278732f9eb7e4ac953f48336d6a0ca8ca310060f9c6f0a699524631861ce5ba",
+    "README.md": "b097f93245ee60bd994b5b5a225779c173c6945324b944cea95719ae8299b787",
     "preflight.json": "71f417f807ac5f444bb72e3b12198f2cfe6c8847a2c5f499651a5c060fccaab4",
     "assets/lid.stl": "2f3bf02d59f49d05512bf568805e9b39009ba16b9d62ad5f682dbf0f6f3168a5",
     "assets/gripper_info.json": "2a3d2f54239df7628388122cf9f5998c3801c800ab205e1a7983bc7aecd4f0f8",
@@ -186,5 +183,35 @@
     "assets/base_info.json": "eed308d76dd61ee11a3808680272d27fc56a1af9d2bfa445dcded904dd41614f",
     "assets/lid_info.json": "07c3bef520aff14df22b7241c99635cd9564db0d82a39881996b5caae4d72adc",
     "assets/base.usda": "8b3dde1b11b5f519f109dd10a6fee9451e1ef415531e3950dc174b5d394f3854"
+  },
+  "centering_revision": {
+    "full_center_m": 0.002,
+    "partial_center_m": 0.002,
+    "height_tilt_yaw_unchanged": true,
+    "demo_ast_unchanged": true,
+    "cpu_pose_contract_tests": "1.9 mm earns full credit after 20 success callbacks; 2.1 mm does not; tabletop lid earns zero; all five exclusive awards reachable",
+    "negative_test": {
+      "mutation": "full center .002 -> .0005; partial center remains .002",
+      "result": "1 failed, 126 deselected in 0.35s",
+      "observed": "0.75 != 1.0 at 1.9 mm",
+      "source_restored_byte_for_byte": true
+    },
+    "physical_judging": "Four visible nonzero side gaps or ruler centre-offset measurement to +/-1 mm, with unchanged seating/angle/release conditions."
+  },
+  "prior_gpu_demo2": {
+    "commit": "fd23a947e5dab182afadb5e31fdf057f05b67a27",
+    "json_status": "success",
+    "score": 0.75,
+    "steps": 670,
+    "termination": "policy_stop",
+    "framework_seconds": 136.033855116,
+    "last_recorded_step": 660,
+    "center_mm": 0.8894856804638522,
+    "top_error_mm": -0.006421089172370387,
+    "tilt_deg": 0.0021779200097354727,
+    "yaw_deg": 0.06529791371883241,
+    "second_descent_alignment_accepted": false,
+    "second_descent_min_gap_mm": 0.4508737148335232,
+    "grip_stable_and_release_observed": true
   }
 }
